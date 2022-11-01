@@ -49,6 +49,6 @@ pub struct Arguments {
     pub only_print_repeated_lines: bool,
 
     /// Show number of unique, repeated and total lines
-    #[clap(short('v'), long("verbose"), value_parser, default_value_t = false)]
+    #[clap(short('v'), long("verbose"), value_parser, default_value_t = false, requires("file"))]
     pub verbose: bool, 
 }
