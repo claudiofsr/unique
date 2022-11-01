@@ -21,10 +21,6 @@ use ring::digest::{SHA256, SHA512};
 // https://github.com/koraa/huniq/blob/main/src/main.rs
 // https://github.com/kljensen/semiuniq
 
-// Informações uteis:
-// https://rust-lang.github.io/rfcs/0823-hash-simplification.html
-// https://nnethercote.github.io/2021/12/08/a-brutally-effective-hash-function-in-rust.html
-
 fn main() -> std::io::Result<()> {
 
     let time: Instant = Instant::now();
@@ -151,8 +147,6 @@ fn print_verbose(time: Instant, uniq_hashes: HashSet<String>, num_repeated_lines
     let num_total_lines: usize = num_unique_lines + num_repeated_lines;
     let len = num_total_lines.to_string().len();
 
-    // Show number of unique, repeated and total lines
-
     let args: Arguments = Arguments::parse();
 
     let algorithm: &str = if args.use_ring_sha256 {
@@ -163,6 +157,8 @@ fn print_verbose(time: Instant, uniq_hashes: HashSet<String>, num_repeated_lines
     } else {
         "DefaultHasher"
     };
+
+    // Show number of unique, repeated and total lines
 
     if args.verbose {
         println!();
