@@ -89,7 +89,7 @@ fn main() -> std::io::Result<()> {
         }
     }
 
-    test_csv_file(&string_utf8);
+    test_csv_file(&string_utf8, &arguments);
 
     print_verbose(time, algorithm, &arguments, uniq_hashes, num_repeated_lines);
 
@@ -140,9 +140,7 @@ fn make_dispatch_table() -> HashMap<&'static str, fn(&str, &'static Algorithm) -
     dispatch_table
 }
 
-fn test_csv_file(all_lines: &str) {
-
-    let args: Arguments = Arguments::parse();
+fn test_csv_file(all_lines: &str, args: &Arguments) {
 
     if args.test_csv_file {
 
@@ -166,7 +164,7 @@ fn test_csv_file(all_lines: &str) {
     }
 }
 
-fn print_verbose(time: Instant, algorithm: &str, arguments: &Arguments, uniq_hashes: HashSet<String>, num_repeated_lines: usize) {
+fn print_verbose(time: Instant, algorithm: &str, args: &Arguments, uniq_hashes: HashSet<String>, num_repeated_lines: usize) {
     // cat file | wc -l
     let num_unique_lines: usize = uniq_hashes.len();
     let num_total_lines: usize = num_unique_lines + num_repeated_lines;
@@ -174,7 +172,7 @@ fn print_verbose(time: Instant, algorithm: &str, arguments: &Arguments, uniq_has
 
     // Show number of unique, repeated and total lines
 
-    if arguments.verbose {
+    if args.verbose {
         println!();
         println!("Number of unique lines  : {num_unique_lines:>len$}");
         println!("Number of repeated lines: {num_repeated_lines:>len$}");
