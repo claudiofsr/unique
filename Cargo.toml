@@ -11,7 +11,8 @@ keywords = ["uniq", "unique", "cli"]
 categories = ["command-line-utilities"]
 
 [dependencies]
-clap = { version = "4.0.18", features = ["derive"] }
+# https://docs.rs/clap/latest/clap/_features/index.html
+clap = { version = "4.0.18", features = ["derive", "color"] }
 ring = "0.16.20"
 encoding_rs = "0.8"
 encoding_rs_io = "0.1.4"
