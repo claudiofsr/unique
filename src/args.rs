@@ -1,7 +1,7 @@
 // command-line arguments
 use clap::Parser;
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)] // Read from `Cargo.toml`
 #[command(next_line_help = true)]
 pub struct Arguments {

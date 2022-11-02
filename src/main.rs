@@ -30,7 +30,7 @@ fn main() -> std::io::Result<()> {
     let arguments: Arguments = Arguments::parse();
 
     // The input is file or stdin.
-    let input_file: Option<String> = arguments.file;
+    let input_file: Option<String> = arguments.file.clone();
 
     let mut reader: Box<dyn BufRead> = read_file_or_stdin(input_file);
 
@@ -52,23 +52,9 @@ fn main() -> std::io::Result<()> {
         }
     };
 
-    let algorithm: &str = if arguments.use_blake3 {
-        "blake3"
-    }
-    else if arguments.use_ring_sha512 {
-        "sha512"
-    } else {
-        "default"
-    };
+    let algorithm: &str = get_hash_algorithm(&arguments); // "Blake3", "Sha512" or "Hasher"
 
-    // https://stackoverflow.com/questions/51372702/how-do-i-make-a-dispatch-table-in-rust
-    let dispatch_table = {
-        let mut temp: HashMap<&str, fn(&str, &'static Algorithm) -> String> = HashMap::new();
-        temp.insert("blake3",  |a, _| blake3_hash(a));
-        temp.insert("sha512",  |a, b| ring_hash(a, b));
-        temp.insert("default", |a, _| calculate_hash(a).to_string());
-        temp
-    };
+    let dispatch_table = make_dispatch_table();
 
     let mut uniq_hashes: HashSet<String> = HashSet::new();
     let mut num_repeated_lines: usize = 0;
@@ -105,7 +91,7 @@ fn main() -> std::io::Result<()> {
 
     test_csv_file(&string_utf8);
 
-    print_verbose(time, uniq_hashes, num_repeated_lines);
+    print_verbose(time, algorithm, &arguments, uniq_hashes, num_repeated_lines);
 
     Ok(())
 }
@@ -134,6 +120,26 @@ where T: Hash + ?Sized,
     hasher.finish()
 }
 
+fn get_hash_algorithm(arguments: &Arguments) -> &'static str {
+    if arguments.use_blake3 {
+        "Blake3"
+    }
+    else if arguments.use_ring_sha512 {
+        "Sha512"
+    } else {
+        "Hasher"
+    }
+}
+
+fn make_dispatch_table() -> HashMap<&'static str, fn(&str, &'static Algorithm) -> String> {
+    // https://stackoverflow.com/questions/51372702/how-do-i-make-a-dispatch-table-in-rust
+    let mut dispatch_table: HashMap<&str, fn(&str, &'static Algorithm) -> String> = HashMap::new();
+    dispatch_table.insert("Blake3", |a, _| blake3_hash(a));
+    dispatch_table.insert("Sha512", |a, b| ring_hash(a, b));
+    dispatch_table.insert("Hasher", |a, _| calculate_hash(a).to_string());
+    dispatch_table
+}
+
 fn test_csv_file(all_lines: &str) {
 
     let args: Arguments = Arguments::parse();
@@ -160,26 +166,15 @@ fn test_csv_file(all_lines: &str) {
     }
 }
 
-fn print_verbose(time: Instant, uniq_hashes: HashSet<String>, num_repeated_lines: usize) {
+fn print_verbose(time: Instant, algorithm: &str, arguments: &Arguments, uniq_hashes: HashSet<String>, num_repeated_lines: usize) {
     // cat file | wc -l
     let num_unique_lines: usize = uniq_hashes.len();
     let num_total_lines: usize = num_unique_lines + num_repeated_lines;
     let len = num_total_lines.to_string().len();
 
-    let args: Arguments = Arguments::parse();
-
-    let algorithm: &str = if args.use_blake3 {
-        "Blake3"
-    }
-    else if args.use_ring_sha512 {
-        "Sha512"
-    } else {
-        "DefaultHasher"
-    };
-
     // Show number of unique, repeated and total lines
 
-    if args.verbose {
+    if arguments.verbose {
         println!();
         println!("Number of unique lines  : {num_unique_lines:>len$}");
         println!("Number of repeated lines: {num_repeated_lines:>len$}");
