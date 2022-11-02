@@ -7,7 +7,7 @@ use std::{
     // https://doc.rust-lang.org/std/hash/index.html
     hash::{Hash, Hasher},
     io::{self, Read, BufReader, BufRead},
-    collections::{HashSet, hash_map::DefaultHasher},
+    collections::{HashMap, HashSet, hash_map::DefaultHasher},
 };
 
 use lib::*;
@@ -15,7 +15,7 @@ use clap::Parser;
 use args::Arguments;
 use encoding_rs::WINDOWS_1252;
 use encoding_rs_io::DecodeReaderBytesBuilder;
-use ring::digest::{SHA256, SHA512};
+use ring::digest::{Algorithm, SHA512};
 
 // Origem: os dois projetos seguintes: huniq e semiuniq
 // https://github.com/koraa/huniq/blob/main/src/main.rs
@@ -52,6 +52,24 @@ fn main() -> std::io::Result<()> {
         }
     };
 
+    let algorithm: &str = if arguments.use_blake3 {
+        "blake3"
+    }
+    else if arguments.use_ring_sha512 {
+        "sha512"
+    } else {
+        "default"
+    };
+
+    // https://stackoverflow.com/questions/51372702/how-do-i-make-a-dispatch-table-in-rust
+    let dispatch_table = {
+        let mut temp: HashMap<&str, fn(&str, &'static Algorithm) -> String> = HashMap::new();
+        temp.insert("blake3",  |a, _| blake3_hash(a));
+        temp.insert("sha512",  |a, b| ring_hash(a, b));
+        temp.insert("default", |a, _| calculate_hash(a).to_string());
+        temp
+    };
+
     let mut uniq_hashes: HashSet<String> = HashSet::new();
     let mut num_repeated_lines: usize = 0;
 
@@ -71,14 +89,7 @@ fn main() -> std::io::Result<()> {
             modified_line = modified_line.remove_multiple_whitespace();
         }
 
-        let hash: String = if arguments.use_ring_sha256 {
-            ring_hash(&modified_line, &SHA256)
-        }
-        else if arguments.use_ring_sha512 {
-            ring_hash(&modified_line, &SHA512)
-        } else {
-            calculate_hash(&modified_line).to_string()
-        };
+        let hash: String = dispatch_table[algorithm](&modified_line, &SHA512);
 
         if uniq_hashes.insert(hash) {
             if !arguments.only_print_repeated_lines {
@@ -129,23 +140,23 @@ fn test_csv_file(all_lines: &str) {
 
     if args.test_csv_file {
 
-        let mut count_separator: HashSet<usize> = HashSet::new();
+        let mut count_delimiter: HashSet<usize> = HashSet::new();
 
-        let csv_separator: char = args.csv_separator;
+        let csv_delimiter: char = args.csv_delimiter;
 
         for line in all_lines.lines() {
-            let num_char: usize = line.count_char(csv_separator);
-            count_separator.insert(num_char);
+            let num_char: usize = line.count_char(csv_delimiter);
+            count_delimiter.insert(num_char);
         }
         
-        if count_separator.len() != 1 || count_separator.contains(&0) {
+        if count_delimiter.len() != 1 || count_delimiter.contains(&0) {
             println!();
             println!("Invalid CSV file!");
-            println!("CSV column separator: '{csv_separator}'");
-            println!("Column separator number observed in rows: {count_separator:?}\n");
+            println!("CSV column delimiter: '{csv_delimiter}'");
+            println!("Column delimiter number observed in rows: {count_delimiter:?}\n");
         }
 
-        //println!("csv_file: {:?} ; csv_separator: '{}'", count_separator, ch);
+        //println!("csv_file: {:?} ; csv_delimiter: '{}'", count_delimiter, ch);
     }
 }
 
@@ -157,11 +168,11 @@ fn print_verbose(time: Instant, uniq_hashes: HashSet<String>, num_repeated_lines
 
     let args: Arguments = Arguments::parse();
 
-    let algorithm: &str = if args.use_ring_sha256 {
-        "ring Sha256"
+    let algorithm: &str = if args.use_blake3 {
+        "Blake3"
     }
     else if args.use_ring_sha512 {
-        "ring Sha512"
+        "Sha512"
     } else {
         "DefaultHasher"
     };

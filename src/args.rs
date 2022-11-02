@@ -22,14 +22,13 @@ pub struct Arguments {
     #[arg(short('w'), long("whitespace"), default_value_t = false)]
     pub remove_multiple_whitespace: bool,
 
-    /// Use ring Sha256 algorithm to hash the lines
-    #[arg(short('2'), long("sha256"), default_value_t = false)]
-    pub use_ring_sha256: bool,
-
     /// Use ring Sha512 algorithm to hash the lines.
-    /// The Sha512 algorithm has less chance of collisions.
-    #[arg(short('5'), long("sha512"), default_value_t = false, verbatim_doc_comment)]
+    #[arg(short('s'), long("sha512"), default_value_t = false)]
     pub use_ring_sha512: bool,
+
+    /// Use blake3 algorithm to hash the lines
+    #[arg(short('b'), long("blake3"), default_value_t = false)]
+    pub use_blake3: bool,
 
     /// Test valid CSV file.
     /// All lines must have the same number of columns.
@@ -43,9 +42,9 @@ pub struct Arguments {
     /// semicolon ';'
     /// pipe '|'
     /// or another char.
-    #[arg(short('s'), long("separator"), default_value_t = ';', required = false)]
+    #[arg(short('d'), long("delimiter"), default_value_t = ';', required = false)]
     #[arg(requires("test_csv_file"), verbatim_doc_comment)]
-    pub csv_separator: char,
+    pub csv_delimiter: char,
 
     /// Only print repeated lines
     #[arg(short('r'), long("repeated"), default_value_t = false)]
