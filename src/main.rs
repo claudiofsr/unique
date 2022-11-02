@@ -15,7 +15,7 @@ use clap::Parser;
 use args::Arguments;
 use encoding_rs::WINDOWS_1252;
 use encoding_rs_io::DecodeReaderBytesBuilder;
-use ring::digest::{Algorithm, SHA512};
+use ring::digest::{SHA256, SHA512};
 
 // Origem: os dois projetos seguintes: huniq e semiuniq
 // https://github.com/koraa/huniq/blob/main/src/main.rs
@@ -52,7 +52,8 @@ fn main() -> std::io::Result<()> {
         }
     };
 
-    let algorithm: &str = get_hash_algorithm(&arguments); // "Blake3", "Sha512" or "Hasher"
+    // "Blake3", "Sha256", "Sha512" or "Hasher"
+    let algorithm: &str = get_hash_algorithm(&arguments);
 
     let dispatch_table = make_dispatch_table();
 
@@ -75,7 +76,7 @@ fn main() -> std::io::Result<()> {
             modified_line = modified_line.remove_multiple_whitespace();
         }
 
-        let hash: String = dispatch_table[algorithm](&modified_line, &SHA512);
+        let hash: String = dispatch_table[algorithm](&modified_line);
 
         if uniq_hashes.insert(hash) {
             if !arguments.only_print_repeated_lines {
@@ -124,6 +125,9 @@ fn get_hash_algorithm(arguments: &Arguments) -> &'static str {
     if arguments.use_blake3 {
         "Blake3"
     }
+    else if arguments.use_ring_sha256 {
+        "Sha256"
+    }
     else if arguments.use_ring_sha512 {
         "Sha512"
     } else {
@@ -131,12 +135,13 @@ fn get_hash_algorithm(arguments: &Arguments) -> &'static str {
     }
 }
 
-fn make_dispatch_table() -> HashMap<&'static str, fn(&str, &'static Algorithm) -> String> {
+fn make_dispatch_table() -> HashMap<&'static str, fn(&str) -> String> {
     // https://stackoverflow.com/questions/51372702/how-do-i-make-a-dispatch-table-in-rust
-    let mut dispatch_table: HashMap<&str, fn(&str, &'static Algorithm) -> String> = HashMap::new();
-    dispatch_table.insert("Blake3", |a, _| blake3_hash(a));
-    dispatch_table.insert("Sha512", |a, b| ring_hash(a, b));
-    dispatch_table.insert("Hasher", |a, _| calculate_hash(a).to_string());
+    let mut dispatch_table: HashMap<&str, fn(&str) -> String> = HashMap::new();
+    dispatch_table.insert("Blake3", blake3_hash);
+    dispatch_table.insert("Sha256", |a| ring_hash(a, &SHA256));
+    dispatch_table.insert("Sha512", |a| ring_hash(a, &SHA512));
+    dispatch_table.insert("Hasher", |a| calculate_hash(a).to_string());
     dispatch_table
 }
 

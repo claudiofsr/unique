@@ -22,12 +22,20 @@ pub struct Arguments {
     #[arg(short('w'), long("whitespace"), default_value_t = false)]
     pub remove_multiple_whitespace: bool,
 
+    /// Use ring Sha256 algorithm to hash the lines.
+    #[arg(short('2'), long("sha256"), default_value_t = false)]
+    pub use_ring_sha256: bool,
+
     /// Use ring Sha512 algorithm to hash the lines.
-    #[arg(short('s'), long("sha512"), default_value_t = false)]
+    /// The Sha512 algorithm has less chance of collisions than Sha256.
+    #[arg(short('5'), long("sha512"), default_value_t = false, verbatim_doc_comment)]
     pub use_ring_sha512: bool,
 
-    /// Use blake3 algorithm to hash the lines
-    #[arg(short('b'), long("blake3"), default_value_t = false)]
+    /// Use Blake3 algorithm to hash the lines.
+    /// Blake3 is a cryptographic hash function that is:
+    /// Much faster than MD5, SHA-1, SHA-2, SHA-3, and BLAKE2.
+    /// Secure, unlike MD5 and SHA-1. And secure against length extension, unlike SHA-2.
+    #[arg(short('b'), long("blake3"), default_value_t = false, verbatim_doc_comment)]
     pub use_blake3: bool,
 
     /// Test valid CSV file.
