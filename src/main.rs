@@ -92,27 +92,9 @@ fn main() -> std::io::Result<()> {
         }
     }
 
+    test_csv_file(&string_utf8);
+
     print_verbose(time, uniq_hashes, num_repeated_lines);
-
-    if arguments.test_csv_file {
-
-        let mut count_separator: HashSet<usize> = HashSet::new();
-
-        let csv_separator: char = arguments.csv_separator;
-
-        for line in string_utf8.lines() {
-            let num_char: usize = line.count_char(csv_separator);
-            count_separator.insert(num_char);
-        }
-        
-        if count_separator.len() != 1 || count_separator.contains(&0) {
-            println!("Invalid CSV file!");
-            println!("CSV column separator: '{csv_separator}'");
-            println!("Column separator number observed in rows: {count_separator:?}\n");
-        }
-
-        //println!("csv_file: {:?} ; csv_separator: '{}'", count_separator, ch);
-    }
 
     Ok(())
 }
@@ -141,6 +123,32 @@ where T: Hash + ?Sized,
     hasher.finish()
 }
 
+fn test_csv_file(all_lines: &str) {
+
+    let args: Arguments = Arguments::parse();
+
+    if args.test_csv_file {
+
+        let mut count_separator: HashSet<usize> = HashSet::new();
+
+        let csv_separator: char = args.csv_separator;
+
+        for line in all_lines.lines() {
+            let num_char: usize = line.count_char(csv_separator);
+            count_separator.insert(num_char);
+        }
+        
+        if count_separator.len() != 1 || count_separator.contains(&0) {
+            println!();
+            println!("Invalid CSV file!");
+            println!("CSV column separator: '{csv_separator}'");
+            println!("Column separator number observed in rows: {count_separator:?}\n");
+        }
+
+        //println!("csv_file: {:?} ; csv_separator: '{}'", count_separator, ch);
+    }
+}
+
 fn print_verbose(time: Instant, uniq_hashes: HashSet<String>, num_repeated_lines: usize) {
     // cat file | wc -l
     let num_unique_lines: usize = uniq_hashes.len();
@@ -167,6 +175,6 @@ fn print_verbose(time: Instant, uniq_hashes: HashSet<String>, num_repeated_lines
         println!("Number of total lines   : {num_total_lines:>len$}");
         println!();
         println!("Algorithm to hash the lines: {algorithm}");
-        println!("Total Run Time: {:?}\n",time.elapsed());
+        println!("Total Run Time: {:?}",time.elapsed());
     }
 }

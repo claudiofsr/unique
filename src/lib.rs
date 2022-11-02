@@ -16,13 +16,14 @@ pub trait ExtraProperties {
 
 impl ExtraProperties for &str {
     // https://stackoverflow.com/questions/71864137/whats-the-ideal-way-to-trim-extra-spaces-from-a-string
-    // Replace multiple whitespace with single whitespace
+    // Replace multiple whitespace '   ' with single whitespace ' '
     // Substituir dois ou mais espaços em branco por apenas um
     fn remove_multiple_whitespace(self) -> String {
         let mut new_str: String = self.to_owned();
         let mut previous_char: char = 'x'; // some non-whitespace character
         new_str.retain(|current_char| {
-            let keep: bool = !(previous_char == ' ' && current_char == ' ');
+            //let keep: bool = !(previous_char == ' ' && current_char == ' ');
+            let keep: bool = previous_char != ' ' || current_char != ' ';
             previous_char = current_char;
             keep
         });
