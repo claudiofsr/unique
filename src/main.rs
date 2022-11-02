@@ -54,8 +54,8 @@ fn main() -> std::io::Result<()> {
 
     // "Blake3", "Sha256", "Sha512" or "Hasher"
     let algorithm: &str = get_hash_algorithm(&arguments);
-
     let dispatch_table = make_dispatch_table();
+    let hash_function = dispatch_table[algorithm];
 
     let mut uniq_hashes: HashSet<String> = HashSet::new();
     let mut num_repeated_lines: usize = 0;
@@ -76,7 +76,7 @@ fn main() -> std::io::Result<()> {
             modified_line = modified_line.remove_multiple_whitespace();
         }
 
-        let hash: String = dispatch_table[algorithm](&modified_line);
+        let hash: String = hash_function(&modified_line);
 
         if uniq_hashes.insert(hash) {
             if !arguments.only_print_repeated_lines {
