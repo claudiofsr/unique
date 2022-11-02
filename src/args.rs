@@ -6,7 +6,7 @@ use clap::Parser;
 #[command(next_line_help = true)]
 pub struct Arguments {
 
-    /// Read lines from file (or standard input)
+    /// Read lines from FILE (or standard input)
     #[arg(required = false)]
     pub file: Option<String>,
 
