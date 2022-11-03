@@ -54,7 +54,7 @@ pub struct Arguments {
     #[arg(requires("test_csv_file"), verbatim_doc_comment)]
     pub csv_delimiter: char,
 
-    /// Only print repeated lines
+    /// Print only duplicate or repeated lines
     #[arg(short('r'), long("repeated"), default_value_t = false)]
     pub only_print_repeated_lines: bool,
 

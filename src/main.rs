@@ -17,7 +17,7 @@ use encoding_rs::WINDOWS_1252;
 use encoding_rs_io::DecodeReaderBytesBuilder;
 use ring::digest::{SHA256, SHA512};
 
-// Origem: os dois projetos seguintes: huniq e semiuniq
+// Inspiração: uniq, huniq e semiuniq.
 // https://github.com/koraa/huniq/blob/main/src/main.rs
 // https://github.com/kljensen/semiuniq
 
@@ -38,6 +38,7 @@ fn main() -> std::io::Result<()> {
     let mut writer: Vec<u8> = Vec::new();
     io::copy(&mut reader, &mut writer)?;
 
+    // from_utf8() checks to ensure that the bytes are valid UTF-8
     let string_utf8: String = match std::str::from_utf8(&writer) {
         Ok(str) => str.to_string(),
         Err(_) => {
@@ -112,23 +113,14 @@ fn read_file_or_stdin(input_file: Option<String>) -> Box<dyn BufRead> {
     reader
 }
 
-// https://doc.rust-lang.org/std/hash/index.html
-fn calculate_hash<T>(input: &T) -> u64
-where T: Hash + ?Sized,
-{
-    let mut hasher = DefaultHasher::new();
-    input.hash(&mut hasher);
-    hasher.finish()
-}
-
-fn get_hash_algorithm(arguments: &Arguments) -> &'static str {
-    if arguments.use_blake3 {
+fn get_hash_algorithm(args: &Arguments) -> &'static str {
+    if args.use_blake3 {
         "Blake3"
     }
-    else if arguments.use_ring_sha256 {
+    else if args.use_ring_sha256 {
         "Sha256"
     }
-    else if arguments.use_ring_sha512 {
+    else if args.use_ring_sha512 {
         "Sha512"
     } else {
         "Hasher"
@@ -143,6 +135,15 @@ fn make_dispatch_table() -> HashMap<&'static str, fn(&str) -> String> {
     dispatch_table.insert("Sha512", |a| ring_hash(a, &SHA512));
     dispatch_table.insert("Hasher", |a| calculate_hash(a).to_string());
     dispatch_table
+}
+
+// https://doc.rust-lang.org/std/hash/index.html
+fn calculate_hash<T>(input: &T) -> u64
+    where T: Hash + ?Sized,
+{
+    let mut hasher = DefaultHasher::new();
+    input.hash(&mut hasher);
+    hasher.finish()
 }
 
 fn test_csv_file(all_lines: &str, args: &Arguments) {
@@ -169,7 +170,13 @@ fn test_csv_file(all_lines: &str, args: &Arguments) {
     }
 }
 
-fn print_verbose(time: Instant, algorithm: &str, args: &Arguments, uniq_hashes: HashSet<String>, num_repeated_lines: usize) {
+fn print_verbose(
+    time: Instant,
+    algorithm: &str,
+    args: &Arguments,
+    uniq_hashes: HashSet<String>,
+    num_repeated_lines: usize
+) {
     // cat file | wc -l
     let num_unique_lines: usize = uniq_hashes.len();
     let num_total_lines: usize = num_unique_lines + num_repeated_lines;
