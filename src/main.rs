@@ -163,7 +163,13 @@ fn test_csv_file(all_lines: &str, args: &Arguments) {
             println!();
             println!("Invalid CSV file!");
             println!("CSV column delimiter: '{csv_delimiter}'");
-            println!("Column delimiter number observed in rows: {count_delimiter:?}\n");
+            println!("Column delimiter number observed in rows: {count_delimiter:?}");
+        }
+        else if args.verbose {
+            println!();
+            println!("Valid CSV file!");
+            println!("CSV column delimiter: '{csv_delimiter}'");
+            println!("Column delimiter number observed in rows: {count_delimiter:?}");
         }
 
         //println!("csv_file: {:?} ; csv_delimiter: '{}'", count_delimiter, ch);
