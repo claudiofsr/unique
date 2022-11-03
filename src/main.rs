@@ -150,29 +150,34 @@ fn test_csv_file(all_lines: &str, args: &Arguments) {
 
     if args.test_csv_file {
 
-        let mut count_delimiter: HashSet<usize> = HashSet::new();
+        let mut delimiter_set: HashSet<usize> = HashSet::new();
 
         let csv_delimiter: char = args.csv_delimiter;
 
         for line in all_lines.lines() {
             let num_char: usize = line.count_char(csv_delimiter);
-            count_delimiter.insert(num_char);
+            delimiter_set.insert(num_char);
         }
         
-        if count_delimiter.len() != 1 || count_delimiter.contains(&0) {
+        if delimiter_set.len() != 1 || delimiter_set.contains(&0) {
             println!();
             println!("Invalid CSV file!");
             println!("CSV column delimiter: '{csv_delimiter}'");
-            println!("Column delimiter number observed in rows: {count_delimiter:?}");
+            println!("Column delimiter number observed in rows: {delimiter_set:?}");
         }
         else if args.verbose {
+            // Get the first element from HashSet
+            // first element = num_char
+            // let vec: Vec<usize> = delimiter_set.into_iter().collect();
+            let num_char: usize = delimiter_set.into_iter().next().unwrap();
+
             println!();
             println!("Valid CSV file!");
             println!("CSV column delimiter: '{csv_delimiter}'");
-            println!("Column delimiter number observed in rows: {count_delimiter:?}");
+            println!("Column delimiter number observed in rows: {num_char}");
         }
 
-        //println!("csv_file: {:?} ; csv_delimiter: '{}'", count_delimiter, ch);
+        //println!("csv_file: {:?} ; csv_delimiter: '{}'", delimiter_set, ch);
     }
 }
 
