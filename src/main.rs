@@ -158,7 +158,12 @@ fn analise_line(args: &Arguments, line: &str) -> MyResult<(String, usize)> {
 
         // https://docs.rs/csv/latest/csv/struct.WriterBuilder.html
         // Add double quotes when necessary
-        let mut wtr = WriterBuilder::new().from_writer(vec![]);
+        let mut wtr = WriterBuilder::new()
+            //.delimiter(args.separator as u8)
+            .delimiter(b';')
+            .has_headers(false)
+            .flexible(false)
+            .from_writer(vec![]);
         wtr.write_record(&cols)?;
         modified_line = String::from_utf8(wtr.into_inner()?)?;
 
