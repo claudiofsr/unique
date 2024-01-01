@@ -52,6 +52,63 @@ const NFEPESOS: [u32; 44] = [
 Formats the date in %d/%m/%Y format. Example:
 ```
     use unique::format_date;
+    let dates = [
+        " 1 / 1 / 2023 ",
+        " 04/10/ 2018  17:04:11 ",
+        "17/5/2014T12:34:56+09:30",
+        "2014-5-17T12:34:56+09:30",
+    ];
+    let mut result = Vec::new();
+    for date in dates {
+        result.push(format_date(format_date(date)));
+    }
+    let valid = vec![
+        "01/01/2023",
+        "04/10/2018",
+        "17/05/2014",
+        "2014-5-17T12:34:56+09:30",
+    ];
+    assert_eq!(valid, result);
+```
+<https://rust-lang-nursery.github.io/rust-cookbook/datetime.html>
+
+<https://docs.rs/chrono/latest/chrono/format/strftime/index.html>
+*/
+pub fn format_date<T>(date: T) -> String
+where
+    T: Deref<Target=str> + std::fmt::Display,
+{
+    /// Example:
+    ///
+    /// <https://docs.rs/once_cell/latest/once_cell/sync/struct.Lazy.html>
+    static DATE_REGEX: Lazy<Regex> = Lazy::new(|| {
+        Regex::new(r"^\s*(\d{1,2})\s*/\s*(\d{1,2})\s*/\s*(\d{4})\s*T?\s*[\s\d+:]*$")
+            .expect("DATE_REGEX: data inválida!")
+    });
+
+    match DATE_REGEX.captures(&date) {
+        Some(caps) => {
+            let dia = caps[1].parse::<u32>();
+            let mes = caps[2].parse::<u32>();
+            let ano = caps[3].parse::<i32>();
+            match (dia, mes, ano) {
+                (Ok(day), Ok(month), Ok(year)) => {
+                    match NaiveDate::from_ymd_opt(year, month, day) {
+                        Some(dt) => dt.format("%d/%m/%Y").to_string(),
+                        None => date.to_string(),
+                    }
+                },
+                _ => date.to_string(),
+            }
+        },
+        None => date.to_string()
+    }
+}
+
+/**
+Formats the date in %d/%m/%Y format. Example:
+```
+    use unique::format_date;
     let date = "1 / 1 / 2023";
     let result = format_date(date);
     assert_eq!(result, "01/01/2023");
@@ -60,7 +117,8 @@ Formats the date in %d/%m/%Y format. Example:
 
 <https://docs.rs/chrono/latest/chrono/format/strftime/index.html>
 */
-pub fn format_date<T>(date: T) -> String
+#[allow(dead_code)]
+pub fn format_date_v2<T>(date: T) -> String
 where
     T: Deref<Target=str> + std::fmt::Display,
 {
@@ -76,39 +134,6 @@ where
             dt.format("%d/%m/%Y").to_string()
         },
         Err(_) => date.to_string()
-    }
-}
-
-#[allow(dead_code)]
-fn format_date_v2<T>(date: T) -> String
-where
-    T: Deref<Target=str>,
-{
-    /// Example:
-    ///
-    /// <https://docs.rs/once_cell/latest/once_cell/sync/struct.Lazy.html>
-    static DATE_REGEX: Lazy<Regex> = Lazy::new(|| {
-        Regex::new(r"^(\d{1,2})/(\d{1,2})/(\d{4})$")
-            .expect("DATE_REGEX regex inválida!")
-    });
-
-    match DATE_REGEX.captures(&date.replace(' ', "")) {
-        Some(caps) => {
-            let dia = caps[1].parse::<u16>().ok();
-            let mes = caps[2].parse::<u16>().ok();
-            let ano = caps[3].parse::<u16>().ok();
-            match (dia, mes, ano) {
-                (Some(d), Some(m), Some(a)) => {
-                    if DIAS.binary_search(&d).is_ok() && MESES.binary_search(&m).is_ok() && a >= 2005 {
-                        format!("{d:02}/{m:02}/{a:04}")
-                    } else {
-                        date.to_string()
-                    }
-                },
-                _ => date.to_string(),
-            }
-        },
-        None => date.to_string()
     }
 }
 
