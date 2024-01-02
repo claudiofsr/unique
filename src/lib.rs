@@ -1,5 +1,8 @@
 pub mod args;
+pub mod structures;
+
 pub use args::*;
+pub use structures::*;
 
 use std::ops::Deref;
 use chrono::NaiveDate;

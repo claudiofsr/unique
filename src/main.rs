@@ -68,7 +68,7 @@ fn main() -> MyResult<()> {
             .into_par_iter() // rayon: parallel iterator
             .map(|(line_number, vec_bytes)| {
                 let line_utf8: String = get_string_utf8_from_slice_bytes(&vec_bytes);
-                let (new_line, num_cols) = analise_line(&arguments, &line_utf8)?;
+                let (new_line, num_cols) = analise_line(&arguments, &line_utf8, line_number)?;
                 let empty_lines: bool = line_utf8.trim().is_empty();
                 Ok((line_number, new_line, num_cols, empty_lines))
             })
@@ -149,11 +149,15 @@ fn get_string_utf8_from_slice_bytes(slice_bytes: &[u8]) -> String {
     string_utf8
 }
 
-fn analise_line(args: &Arguments, line: &str) -> MyResult<(String, usize)> {
+fn analise_line(args: &Arguments, line: &str, _line_number: usize) -> MyResult<(String, usize)> {
     let mut modified_line: String = line.to_owned();
     let mut num_cols: usize = 0;
 
     if args.parse_csv_file {
+ 
+        //let perdcomps: Vec<PerDcomp> = parse_csv_with_serde(&modified_line, args, line_number)?;
+        //for perdcomp in perdcomps { println!("perdcomp: {perdcomp:?}") }
+
         let cols: Vec<String> = parse_csv_line(&modified_line, args);
 
         // https://docs.rs/csv/latest/csv/struct.WriterBuilder.html
@@ -166,10 +170,36 @@ fn analise_line(args: &Arguments, line: &str) -> MyResult<(String, usize)> {
             .from_writer(vec![]);
         wtr.write_record(&cols)?;
         modified_line = String::from_utf8(wtr.into_inner()?)?;
+        
+        num_cols = cols.len();
 
         //modified_line = cols.join(&args.separator.to_string());
 
-        num_cols = cols.len();
+        /*
+        let perdcomps: Vec<PerDcomp> = parse_csv_with_serde(&modified_line, args, line_number)?;
+
+        // When writing records with Serde using structs, 
+        // the header row is written automatically.
+
+        let mut wtr = WriterBuilder::new()
+            //.delimiter(args.separator as u8)
+            .delimiter(b';')
+            .has_headers(false)
+            .flexible(false)
+            .from_writer(vec![]);
+
+        for perdcomp in &perdcomps { 
+            //println!("perdcomp: {perdcomp:?}");
+            if line_number == 1 {
+                continue;
+            }
+            wtr.serialize(perdcomp)?;
+        }
+
+        wtr.flush()?;
+
+        num_cols = perdcomps.len();
+        */
 
         //println!("num_cols: {num_cols} ; cols: {cols:?} ; modified_line: {modified_line:?}\n");
     }
@@ -216,6 +246,36 @@ fn parse_csv_line(line: &str, args: &Arguments) -> Vec<String> {
         .unwrap_or_default();
 
     cols
+}
+
+// https://github.com/BurntSushi/rust-csv
+#[allow(dead_code)]
+fn parse_csv_with_serde(line: &str, args: &Arguments, line_number: usize,) -> MyResult<Vec<PerDcomp>> {
+    let mut reader = ReaderBuilder::new()
+        .quoting(true)
+        .double_quote(true)
+        .has_headers(false)
+        .trim(csv::Trim::All)
+        .flexible(false)
+        .delimiter(args.separator as u8)
+        .from_reader(line.as_bytes());
+
+    //println!("reader {reader:?}\n");
+
+    let mut records: Vec<PerDcomp> = Vec::new();
+
+    for result in reader.deserialize() {
+        if line_number == 1 {
+            continue;
+        }
+        // Notice that we need to provide a type hint for automatic
+        // deserialization.
+        let record: PerDcomp = result?;
+        //println!("{:?}", record);
+        records.push(record);
+    }
+
+    Ok(records)
 }
 
 fn apply_analysis(

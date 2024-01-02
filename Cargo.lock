@@ -571,6 +571,7 @@ dependencies = [
  "once_cell",
  "rayon",
  "regex",
+ "serde",
 ]
 
 [[package]]
