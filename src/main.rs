@@ -19,12 +19,18 @@ use std::{
     collections::HashSet,
 };
 
+/**
+Inspiração: uniq, huniq e semiuniq.
+https://github.com/koraa/huniq/blob/main/src/main.rs
+https://github.com/kljensen/semiuniq
+
+clear && cargo test -- --nocapture
+clear && cargo run -- -h
+cargo b -r && cargo install --path=.
+*/
+
 // Functions defined in lib.rs
 use unique::*;
-
-// Inspiração: uniq, huniq e semiuniq.
-// https://github.com/koraa/huniq/blob/main/src/main.rs
-// https://github.com/kljensen/semiuniq
 
 const CHUNK_SIZE: usize = 10_000;
 const NEWLINE_BYTE: u8 = b'\n';
@@ -225,6 +231,7 @@ fn parse_csv_line(line: &str, args: &Arguments) -> Vec<String> {
         .delimiter(args.separator as u8)
         .from_reader(line.as_bytes());
 
+    let sep: char = args.separator;
     //println!("reader {reader:?}\n");
 
     let records: Vec<StringRecord> = reader
@@ -238,6 +245,7 @@ fn parse_csv_line(line: &str, args: &Arguments) -> Vec<String> {
         .map(|cols| cols
             .into_iter()
             .map(|col| col.replace("\\n", " ").trim().to_string()) // replace new_line by " "
+            .map(|col| col.replace(sep, "-").to_string()) // replace separator ';' by '-'
             .map(|col| if args.format_date { format_date(col) } else { col } )
             .map(|col| if args.format_key { format_key(col) } else { col } )
             .map(|col| if args.format_number { format_number(col) } else { col } )
