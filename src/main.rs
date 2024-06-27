@@ -1,5 +1,5 @@
 use args::Arguments;
-use clap::Parser;
+use clap:: Parser;
 use csv::{ReaderBuilder, StringRecord, WriterBuilder};
 use encoding_rs::WINDOWS_1252;
 use encoding_rs_io::DecodeReaderBytesBuilder;
@@ -55,6 +55,7 @@ fn main() -> MyResult<()> {
     let mut num_bytes: usize = 1;
 
     while num_bytes > 0 {
+        // Vec<line_number, line>
         let mut vec_lines: Vec<(usize, Vec<u8>)> = Vec::new();
 
         loop {
@@ -130,7 +131,7 @@ fn get_string_utf8_from_slice_bytes(slice_bytes: &[u8]) -> String {
     // from_utf8() checks to ensure that the bytes are valid UTF-8
     let string_utf8: String = match std::str::from_utf8(&vec_bytes) {
         Ok(str) => str.to_string(),
-        Err(_) => {
+        Err(error1) => {
             let mut data = DecodeReaderBytesBuilder::new()
             .encoding(Some(WINDOWS_1252))
             .build(vec_bytes.as_slice());
@@ -138,11 +139,11 @@ fn get_string_utf8_from_slice_bytes(slice_bytes: &[u8]) -> String {
             let mut buffer = String::new();
             let _number_of_bytes = match data.read_to_string(&mut buffer) {
                 Ok(num) => num,
-                Err(why) => {
+                Err(error2) => {
                     eprintln!("Problem reading data from file in buffer!");
                     eprintln!("Used encoding type: WINDOWS_1252.");
                     eprintln!("Try another encoding type!");
-                    panic!("Failed to convert data to UTF-8!: {why}")
+                    panic!("Failed to convert data from WINDOWS_1252 to UTF-8!: {error1}\n{error2}")
                 },
             };
 
