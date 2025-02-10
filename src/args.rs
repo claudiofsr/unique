@@ -6,23 +6,21 @@ use std::path::PathBuf;
 fn get_styles() -> clap::builder::Styles {
     clap::builder::Styles::styled()
         .placeholder(
-            anstyle::Style::new()
-            .fg_color(Some(anstyle::Color::Ansi(anstyle::AnsiColor::Yellow))),
+            anstyle::Style::new().fg_color(Some(anstyle::Color::Ansi(anstyle::AnsiColor::Yellow))),
         )
         .usage(
             anstyle::Style::new()
                 .fg_color(Some(anstyle::Color::Ansi(anstyle::AnsiColor::Cyan)))
-                .bold()
+                .bold(),
         )
         .header(
             anstyle::Style::new()
                 .fg_color(Some(anstyle::Color::Ansi(anstyle::AnsiColor::Cyan)))
                 .bold()
-                .underline()
+                .underline(),
         )
         .literal(
-            anstyle::Style::new()
-                .fg_color(Some(anstyle::Color::Ansi(anstyle::AnsiColor::Green)))
+            anstyle::Style::new().fg_color(Some(anstyle::Color::Ansi(anstyle::AnsiColor::Green))),
         )
 }
 
@@ -35,7 +33,6 @@ fn get_styles() -> clap::builder::Styles {
     styles=get_styles(),
 )]
 pub struct Arguments {
-
     /// FILE input (or standard input).
     #[arg(required = false)]
     pub file: Option<PathBuf>,
@@ -75,12 +72,22 @@ pub struct Arguments {
     /// Formats the date in %d/%m/%Y format in CSV files.
     /// Example:
     /// "1 / 1 / 2023" => "01/01/2023"
-    #[arg(short('d'), long("format_date"), default_value_t = false, required = false)]
+    #[arg(
+        short('d'),
+        long("format_date"),
+        default_value_t = false,
+        required = false
+    )]
     #[arg(requires("parse_csv_file"), verbatim_doc_comment)]
     pub format_date: bool,
 
     /// Format 44-digit key and calculate key check digit in CSV files.
-    #[arg(short('k'), long("format_key"), default_value_t = false, required = false)]
+    #[arg(
+        short('k'),
+        long("format_key"),
+        default_value_t = false,
+        required = false
+    )]
     #[arg(requires("parse_csv_file"), verbatim_doc_comment)]
     pub format_key: bool,
 
@@ -88,7 +95,12 @@ pub struct Arguments {
     /// Example:
     /// 34.542.675,01 => 34542675.01
     /// 34,542,675.01 => 34542675.01
-    #[arg(short('n'), long("format_number"), default_value_t = false, required = false)]
+    #[arg(
+        short('n'),
+        long("format_number"),
+        default_value_t = false,
+        required = false
+    )]
     #[arg(requires("parse_csv_file"), verbatim_doc_comment)]
     pub format_number: bool,
 

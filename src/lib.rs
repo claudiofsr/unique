@@ -4,10 +4,10 @@ pub mod structures;
 pub use args::*;
 pub use structures::*;
 
-use std::ops::Deref;
 use chrono::NaiveDate;
 use regex::Regex;
-use once_cell::sync::Lazy;
+use std::ops::Deref;
+use std::sync::LazyLock as Lazy;
 
 pub use claudiofsr_lib::StrExtension;
 
@@ -15,7 +15,6 @@ pub type MyError = Box<dyn std::error::Error + Send + Sync>;
 pub type MyResult<T> = Result<T, MyError>;
 
 pub const DIAS: [u16; 31] = {
-
     let mut array: [u16; 31] = [0; 31];
 
     let mut i: u16 = 0;
@@ -28,7 +27,6 @@ pub const DIAS: [u16; 31] = {
 };
 
 pub const MESES: [u16; 12] = {
-
     let mut array: [u16; 12] = [0; 12];
 
     let mut i: u16 = 0;
@@ -43,12 +41,8 @@ pub const MESES: [u16; 12] = {
 const CNPJPESO1: [u32; 14] = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2, 0, 0];
 const CNPJPESO2: [u32; 14] = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2, 0];
 const NFEPESOS: [u32; 44] = [
-    4, 3, 2,
-    9, 8, 7, 6, 5, 4, 3, 2,
-    9, 8, 7, 6, 5, 4, 3, 2,
-    9, 8, 7, 6, 5, 4, 3, 2,
-    9, 8, 7, 6, 5, 4, 3, 2,
-    9, 8, 7, 6, 5, 4, 3, 2, 0
+    4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2, 9, 8, 7, 6, 5,
+    4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2, 0,
 ];
 
 /**
@@ -79,11 +73,8 @@ Formats the date in %d/%m/%Y format. Example:
 */
 pub fn format_date<T>(date: T) -> String
 where
-    T: Deref<Target=str> + std::fmt::Display,
+    T: Deref<Target = str> + std::fmt::Display,
 {
-    /// Example:
-    ///
-    /// <https://docs.rs/once_cell/latest/once_cell/sync/struct.Lazy.html>
     static DATE_REGEX: Lazy<Regex> = Lazy::new(|| {
         Regex::new(r"^\s*(\d{1,2})\s*/\s*(\d{1,2})\s*/\s*(\d{4})\s*T?\s*[\s\d+:]*$")
             .expect("DATE_REGEX: data inválida!")
@@ -95,16 +86,14 @@ where
             let mes = caps[2].parse::<u32>();
             let ano = caps[3].parse::<i32>();
             match (dia, mes, ano) {
-                (Ok(day), Ok(month), Ok(year)) => {
-                    match NaiveDate::from_ymd_opt(year, month, day) {
-                        Some(dt) => dt.format("%d/%m/%Y").to_string(),
-                        None => date.to_string(),
-                    }
+                (Ok(day), Ok(month), Ok(year)) => match NaiveDate::from_ymd_opt(year, month, day) {
+                    Some(dt) => dt.format("%d/%m/%Y").to_string(),
+                    None => date.to_string(),
                 },
                 _ => date.to_string(),
             }
-        },
-        None => date.to_string()
+        }
+        None => date.to_string(),
     }
 }
 
@@ -123,7 +112,7 @@ Formats the date in %d/%m/%Y format. Example:
 #[allow(dead_code)]
 pub fn format_date_v2<T>(date: T) -> String
 where
-    T: Deref<Target=str> + std::fmt::Display,
+    T: Deref<Target = str> + std::fmt::Display,
 {
     // %d Day number (01–31), zero-padded to 2 digits.
     // %m Month number (01–12), zero-padded to 2 digits.
@@ -135,8 +124,8 @@ where
             //let ano = dt.year();
             //format!("{dia:02}/{mes:02}/{ano:04}")
             dt.format("%d/%m/%Y").to_string()
-        },
-        Err(_) => date.to_string()
+        }
+        Err(_) => date.to_string(),
     }
 }
 
@@ -144,7 +133,7 @@ where
 // teste; '''35120661156501000156550010000004551601580259;  --> teste;'35120661156501000156550010000004551601580259';
 pub fn format_key<T>(chave: T) -> String
 where
-    T: Deref<Target=str>,
+    T: Deref<Target = str>,
 {
     let partes: Vec<&str> = chave
         .split('\'')
@@ -170,11 +159,12 @@ where
 // https://stackoverflow.com/questions/66714719/how-can-i-check-if-a-str-consists-of-only-a-given-slice-of-chars
 // https://play.rust-lang.org/?version=stable&mode=debug&edition=2021&gist=104a8361285d2cbc21764f1f333ea428
 pub fn format_number<T>(text: T) -> String
-    where
-    T: Deref<Target=str>,
+where
+    T: Deref<Target = str>,
 {
-
-    let my_digits: [char; 14] = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '-', '.', ','];
+    let my_digits: [char; 14] = [
+        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '-', '.', ',',
+    ];
     //let my_digits: Vec<u8> = "0123456789+-.,".bytes().collect();
 
     if text.is_empty() || !text.chars().all(|c| my_digits.contains(&c)) {
@@ -191,16 +181,14 @@ pub fn format_number<T>(text: T) -> String
     }
 
     let mut new_str: String = text.to_string();
-    new_str.retain(|current_char| {
-        current_char == '.' || current_char == ','
-    });
+    new_str.retain(|current_char| current_char == '.' || current_char == ',');
     let char_vec: Vec<char> = new_str.chars().collect();
     let size = char_vec.len();
     //println!("new_str: '{new_str}' ; char_vec: {char_vec:?} ; size: {size}");
 
     if size >= 3 {
         let first_char = char_vec[0];
-        for current_char in &char_vec[1 .. size-1] {
+        for current_char in &char_vec[1..size - 1] {
             //println!("first_char: '{first_char}' ; current_char: '{current_char}'");
             if *current_char != first_char {
                 return text.to_string();
@@ -208,20 +196,16 @@ pub fn format_number<T>(text: T) -> String
         }
     }
 
-    let check1 = size >= 2 && char_vec[0] == '.' && char_vec[size-1] == ',';
-    let check2 = size >= 2 && char_vec[0] == ',' && char_vec[size-1] == '.';
+    let check1 = size >= 2 && char_vec[0] == '.' && char_vec[size - 1] == ',';
+    let check2 = size >= 2 && char_vec[0] == ',' && char_vec[size - 1] == '.';
     let check3 = size == 1 && char_vec[0] == ',';
 
     let replaced = if check1 {
-        text
-        .replace('.',"")
-        .replace(',',".")
+        text.replace('.', "").replace(',', ".")
     } else if check2 {
-        text
-        .replace(',',"")
+        text.replace(',', "")
     } else if check3 {
-        text
-        .replace(',',".")
+        text.replace(',', ".")
     } else {
         text.to_string()
     };
@@ -232,8 +216,8 @@ pub fn format_number<T>(text: T) -> String
         Ok(num) => {
             //println!("parsed");
             num.to_string()
-        },
-        Err(_) => text.to_string()
+        }
+        Err(_) => text.to_string(),
     }
 }
 
@@ -253,7 +237,7 @@ Reescreva a função split_line_on_numbers adicionando comentários explicativos
 */
 
 // Esta função divide uma linha de texto em strings, mantendo os dígitos e os textos vizinhos juntos.
-pub fn split_line_on_numbers (line: &str) -> Vec<String> {
+pub fn split_line_on_numbers(line: &str) -> Vec<String> {
     // Vetor que armazena as partes da linha de texto dividida
     let mut parts: Vec<String> = Vec::new();
     // Variável que armazena a parte atual da linha de texto
@@ -509,11 +493,21 @@ mod functions {
 
         let strings: Vec<&str> = vec![
             "teste",
-            " teste", "teste ", " teste ",
-            "  teste", "teste  ", "  teste  ",
-            "tes te", "tes  te", "tes   te",
-            " tes te", "tes  te ", " tes  te ",
-            "  tes te", "tes  te  ", "  tes  te  ",
+            " teste",
+            "teste ",
+            " teste ",
+            "  teste",
+            "teste  ",
+            "  teste  ",
+            "tes te",
+            "tes  te",
+            "tes   te",
+            " tes te",
+            "tes  te ",
+            " tes  te ",
+            "  tes te",
+            "tes  te  ",
+            "  tes  te  ",
         ];
         for string in strings {
             let s = ["'", string, "'"].concat();

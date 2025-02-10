@@ -1,22 +1,17 @@
 use args::Arguments;
-use clap:: Parser;
+use clap::Parser;
+use claudiofsr_lib::StrExtension;
 use csv::{ReaderBuilder, StringRecord, WriterBuilder};
 use encoding_rs::WINDOWS_1252;
 use encoding_rs_io::DecodeReaderBytesBuilder;
-use claudiofsr_lib::StrExtension;
+use execution_time::ExecutionTime;
 use rayon::prelude::*;
 
 use std::{
-    path::PathBuf,
-    time::Instant,
-    fs::{self, File},
-    io::{
-        self,
-        Read,
-        BufReader,
-        BufRead
-    },
     collections::HashSet,
+    fs::{self, File},
+    io::{self, BufRead, BufReader, Read},
+    path::PathBuf,
 };
 
 /**
@@ -28,7 +23,6 @@ clear && cargo test -- --nocapture
 clear && cargo run -- -h
 cargo b -r && cargo install --path=.
 */
-
 // Functions defined in lib.rs
 use unique::*;
 
@@ -36,7 +30,7 @@ const CHUNK_SIZE: usize = 10_000;
 const NEWLINE_BYTE: u8 = b'\n';
 
 fn main() -> MyResult<()> {
-    let time: Instant = Instant::now();
+    let timer = ExecutionTime::start();
     let arguments: Arguments = Arguments::parse();
 
     // The input is file or stdin.
@@ -61,7 +55,8 @@ fn main() -> MyResult<()> {
         loop {
             let mut line: Vec<u8> = Vec::new();
             num_bytes = buffer.read_until(NEWLINE_BYTE, &mut line)?;
-            if num_bytes == 0 { // EOF is reached
+            if num_bytes == 0 {
+                // EOF is reached
                 break;
             }
             line_number += 1;
@@ -89,13 +84,26 @@ fn main() -> MyResult<()> {
             let (_line_number, line, num_cols, empty_lines) = tuple;
             // convert a boolean to an integer
             num_empty_lines += empty_lines as usize;
-            apply_analysis(&arguments, &line, num_cols, &mut num_repeated_lines, &mut uniq_hashes, &mut delimiter_set);
+            apply_analysis(
+                &arguments,
+                &line,
+                num_cols,
+                &mut num_repeated_lines,
+                &mut uniq_hashes,
+                &mut delimiter_set,
+            );
         }
     }
 
     analise_csv_file(&arguments, delimiter_set);
 
-    print_verbose(&arguments, time, uniq_hashes, num_repeated_lines, num_empty_lines);
+    print_verbose(
+        &arguments,
+        timer,
+        uniq_hashes,
+        num_repeated_lines,
+        num_empty_lines,
+    );
 
     Ok(())
 }
@@ -109,14 +117,14 @@ fn read_file_or_stdin(path: &Option<PathBuf>) -> Box<dyn BufRead> {
                 .write(false)
                 .create(false)
                 .open(filename)
-                {
-                    Ok(file) => file,
-                    Err(error) => {
-                        panic!("Failed to open file {filename:?}\n{error}");
-                    }
-                };
+            {
+                Ok(file) => file,
+                Err(error) => {
+                    panic!("Failed to open file {filename:?}\n{error}");
+                }
+            };
             Box::new(BufReader::new(file))
-        },
+        }
         None => Box::new(BufReader::new(io::stdin())),
     };
 
@@ -133,8 +141,8 @@ fn get_string_utf8_from_slice_bytes(slice_bytes: &[u8]) -> String {
         Ok(str) => str.to_string(),
         Err(error1) => {
             let mut data = DecodeReaderBytesBuilder::new()
-            .encoding(Some(WINDOWS_1252))
-            .build(vec_bytes.as_slice());
+                .encoding(Some(WINDOWS_1252))
+                .build(vec_bytes.as_slice());
 
             let mut buffer = String::new();
             let _number_of_bytes = match data.read_to_string(&mut buffer) {
@@ -144,7 +152,7 @@ fn get_string_utf8_from_slice_bytes(slice_bytes: &[u8]) -> String {
                     eprintln!("Used encoding type: WINDOWS_1252.");
                     eprintln!("Try another encoding type!");
                     panic!("Failed to convert data from WINDOWS_1252 to UTF-8!: {error1}\n{error2}")
-                },
+                }
             };
 
             buffer
@@ -161,7 +169,6 @@ fn analise_line(args: &Arguments, line: &str, _line_number: usize) -> MyResult<(
     let mut num_cols: usize = 0;
 
     if args.parse_csv_file {
- 
         //let perdcomps: Vec<PerDcomp> = parse_csv_with_serde(&modified_line, args, line_number)?;
         //for perdcomp in perdcomps { println!("perdcomp: {perdcomp:?}") }
 
@@ -177,7 +184,7 @@ fn analise_line(args: &Arguments, line: &str, _line_number: usize) -> MyResult<(
             .from_writer(vec![]);
         wtr.write_record(&cols)?;
         modified_line = String::from_utf8(wtr.into_inner()?)?;
-        
+
         num_cols = cols.len();
 
         //modified_line = cols.join(&args.separator.to_string());
@@ -185,7 +192,7 @@ fn analise_line(args: &Arguments, line: &str, _line_number: usize) -> MyResult<(
         /*
         let perdcomps: Vec<PerDcomp> = parse_csv_with_serde(&modified_line, args, line_number)?;
 
-        // When writing records with Serde using structs, 
+        // When writing records with Serde using structs,
         // the header row is written automatically.
 
         let mut wtr = WriterBuilder::new()
@@ -195,7 +202,7 @@ fn analise_line(args: &Arguments, line: &str, _line_number: usize) -> MyResult<(
             .flexible(false)
             .from_writer(vec![]);
 
-        for perdcomp in &perdcomps { 
+        for perdcomp in &perdcomps {
             //println!("perdcomp: {perdcomp:?}");
             if line_number == 1 {
                 continue;
@@ -235,23 +242,38 @@ fn parse_csv_line(line: &str, args: &Arguments) -> Vec<String> {
     let sep: char = args.separator;
     //println!("reader {reader:?}\n");
 
-    let records: Vec<StringRecord> = reader
-        .records()
-        .filter_map(|result| result.ok())
-        .collect();
+    let records: Vec<StringRecord> = reader.records().filter_map(|result| result.ok()).collect();
 
     // Vec<StringRecord> to Vec<&str>
     let cols: Vec<String> = records
         .first()
-        .map(|cols| cols
-            .into_iter()
-            .map(|col| col.replace("\\n", " ").trim().to_string()) // replace new_line by " "
-            .map(|col| col.replace(sep, "-").to_string()) // replace separator ';' by '-'
-            .map(|col| if args.format_date { format_date(col) } else { col } )
-            .map(|col| if args.format_key { format_key(col) } else { col } )
-            .map(|col| if args.format_number { format_number(col) } else { col } )
-            .collect()
-        )
+        .map(|cols| {
+            cols.into_iter()
+                .map(|col| col.replace("\\n", " ").trim().to_string()) // replace new_line by " "
+                .map(|col| col.replace(sep, "-").to_string()) // replace separator ';' by '-'
+                .map(|col| {
+                    if args.format_date {
+                        format_date(col)
+                    } else {
+                        col
+                    }
+                })
+                .map(|col| {
+                    if args.format_key {
+                        format_key(col)
+                    } else {
+                        col
+                    }
+                })
+                .map(|col| {
+                    if args.format_number {
+                        format_number(col)
+                    } else {
+                        col
+                    }
+                })
+                .collect()
+        })
         .unwrap_or_default();
 
     cols
@@ -259,7 +281,11 @@ fn parse_csv_line(line: &str, args: &Arguments) -> Vec<String> {
 
 // https://github.com/BurntSushi/rust-csv
 #[allow(dead_code)]
-fn parse_csv_with_serde(line: &str, args: &Arguments, line_number: usize,) -> MyResult<Vec<PerDcomp>> {
+fn parse_csv_with_serde(
+    line: &str,
+    args: &Arguments,
+    line_number: usize,
+) -> MyResult<Vec<PerDcomp>> {
     let mut reader = ReaderBuilder::new()
         .quoting(true)
         .double_quote(true)
@@ -335,8 +361,7 @@ fn analise_csv_file(args: &Arguments, delimiter_set: HashSet<usize>) {
             eprintln!("Invalid CSV file!");
             eprintln!("CSV column delimiter: '{separator}'");
             eprintln!("Column delimiter number observed in rows: {delimiter_vec:?}");
-        }
-        else if args.verbose {
+        } else if args.verbose {
             let first_element = delimiter_vec[0];
             eprintln!();
             eprintln!("Valid CSV file!");
@@ -348,7 +373,7 @@ fn analise_csv_file(args: &Arguments, delimiter_set: HashSet<usize>) {
 
 fn print_verbose(
     args: &Arguments,
-    time: Instant,
+    timer: ExecutionTime,
     uniq_hashes: HashSet<String>,
     num_repeated_lines: usize,
     num_empty_lines: usize,
@@ -374,6 +399,6 @@ fn print_verbose(
         eprintln!("Number of repeated lines            : {num_repeated_lines:>max_len$}");
         eprintln!("Number of empty lines               : {num_empty_lines:>max_len$}");
         eprintln!("Number of lines in the final file   : {num_total_lines_final:>max_len$}\n");
-        eprintln!("Total Run Time: {:?}\n",time.elapsed());
+        eprintln!("Total Run Time: {:?}\n", timer.get_elapsed_time());
     }
 }
