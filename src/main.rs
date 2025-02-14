@@ -125,7 +125,7 @@ fn read_file_or_stdin(path: &Option<PathBuf>) -> Box<dyn BufRead> {
             };
             Box::new(BufReader::new(file))
         },
-        None => Box::new(BufReader::new(io::stdin())),
+        None => Box::new(BufReader::new(io::stdin()))
     };
 
     buffer
