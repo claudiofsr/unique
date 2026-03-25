@@ -575,6 +575,10 @@ mod test_format_number {
         // Letras invalidam a formatação (retorna original)
         assert_eq!(format_number("1.23b,50", br), "1.23b,50");
         assert_eq!(format_number("123a", br), "123a");
+        assert_eq!(format_number("123 4", br), "123 4");
+        assert_eq!(format_number("123 .4", br), "123 .4");
+        assert_eq!(format_number("123 ,4", br), "123 ,4");
+        assert_eq!(format_number("172835, 172834", br), "172835, 172834");
 
         // Strings vazias ou apenas espaços
         assert_eq!(format_number("", br), "");
