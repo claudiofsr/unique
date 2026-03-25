@@ -574,6 +574,9 @@ mod test_format_number {
         let br = NumberFormat::Brazilian;
 
         // Letras invalidam a formatação (retorna original)
+        assert_eq!(format_number("a", br), "a");
+        assert_eq!(format_number("abc", br), "abc");
+        assert_eq!(format_number("abc 123", br), "abc 123");
         assert_eq!(format_number("1.23b,50", br), "1.23b,50");
         assert_eq!(format_number("123a", br), "123a");
         assert_eq!(format_number("123 4", br), "123 4");
