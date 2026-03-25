@@ -193,6 +193,7 @@ pub fn format_number<T: AsRef<str>>(text: T, format: NumberFormat) -> String {
 
     match cleaned.parse::<f64>() {
         Ok(num) => {
+            // remoção de sinal negativo de Zero: "-0.0" --> "0.0"
             let num = if num == 0.0 { 0.0 } else { num };
             let s = num.to_string();
 
