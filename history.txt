@@ -1,0 +1,22 @@
+cargo b -r
+cargo b
+cargo b -r
+cargo b
+cargo test
+cargo b
+cargo b -r
+claudio FSR
+claudio fsr
+claudio  FSR
+claudio FsR
+tes te
+tes  te
+tes    te
+tes      te
+mn123mn
+ mn123mn
+mn123mn 
+ mn123mn 
+  mn123mn 
+ mn123mn  
+  mn123mn  
