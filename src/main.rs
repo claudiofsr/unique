@@ -124,12 +124,11 @@ fn run() -> UniqueResult<()> {
             let mut line: Vec<u8> = Vec::new();
             num_bytes = buffer.read_until(NEWLINE_BYTE, &mut line)?;
             if num_bytes == 0 {
+                // EOF is reached
                 break;
             }
-
             line_number += 1;
             vec_lines.push((line_number, line));
-
             if vec_lines.len() >= CHUNK_SIZE {
                 break;
             }
@@ -137,8 +136,8 @@ fn run() -> UniqueResult<()> {
 
         // PARALLEL ENGINE: Process the chunk using Rayon
         let vector: AnalysisResult = vec_lines
-            .into_par_iter()
-            .map(|(l_num, vec_bytes)| {
+            .into_par_iter() // rayon: parallel iterator
+            .map(|(line_number, vec_bytes)| {
                 let line_utf8: String = get_string_utf8_from_slice_bytes(&vec_bytes);
                 let is_empty = line_utf8.trim().is_empty();
 
@@ -149,7 +148,7 @@ fn run() -> UniqueResult<()> {
                         return Ok(None);
                     }
                     return Ok(Some(AnalyzedLine {
-                        line_number: l_num,
+                        line_number,
                         content: String::new(),
                         column_count: 0,
                         is_empty: true,
@@ -160,17 +159,21 @@ fn run() -> UniqueResult<()> {
                 let (new_line, num_cols) = if arguments.map_docs_fiscais {
                     analise_line_with_serde(&arguments, &line_utf8, &header_string)?
                 } else {
-                    analise_line(&arguments, &line_utf8, l_num)?
+                    analise_line(&arguments, &line_utf8, line_number)?
                 };
 
                 Ok(Some(AnalyzedLine {
-                    line_number: l_num,
+                    line_number,
                     content: new_line,
                     column_count: num_cols,
                     is_empty: false,
                 }))
             })
             .collect();
+
+        // Não é necessário ordenar, pois rayon coleta já ordenado!
+        // No sorting required as rayon collects already sorted!
+        // vector.par_sort_by_key(|&(line_number,..)| line_number);
 
         // --- STEP 3: APPLY RESULTS ---
         for analyzed in vector?.into_iter().flatten() {
