@@ -13,6 +13,7 @@ use std::{
     io::{self, BufRead, BufReader, Read},
     path::PathBuf,
     process,
+    sync::atomic::{AtomicUsize, Ordering},
 };
 
 // Functions defined in lib.rs
@@ -20,6 +21,18 @@ use unique::*;
 
 const CHUNK_SIZE: usize = 10_000;
 const NEWLINE_BYTE: u8 = b'\n';
+
+/// Represents the result of a single line analysis
+#[derive(Debug)]
+pub struct AnalyzedLine {
+    pub line_number: usize,
+    pub content: String,
+    pub column_count: usize,
+    pub is_empty: bool,
+}
+
+// Alias opcional para simplificar a assinatura da função
+pub type AnalysisResult = UniqueResult<Vec<Option<AnalyzedLine>>>;
 
 /*
 Inspiração: uniq, huniq e semiuniq.
@@ -35,18 +48,6 @@ unique arquivo.csv --csv -f (Padrão: 1.234,56 -> 1234.56)
 unique arquivo.csv --csv -f --number-format international (Padrão: 1,234.56 -> 1234.56)
 */
 
-/// Represents the result of a single line analysis
-#[derive(Debug)]
-pub struct AnalyzedLine {
-    pub line_number: usize,
-    pub content: String,
-    pub column_count: usize,
-    pub is_empty: bool,
-}
-
-// Alias opcional para simplificar a assinatura da função
-pub type AnalysisResult = UniqueResult<Vec<Option<AnalyzedLine>>>;
-
 fn main() -> UniqueResult<()> {
     if let Err(error) = run() {
         eprintln!("Operation failed!\n{}", error);
@@ -54,8 +55,6 @@ fn main() -> UniqueResult<()> {
     }
     Ok(())
 }
-
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 fn run() -> UniqueResult<()> {
     let timer = ExecutionTime::start();
