@@ -40,6 +40,11 @@ fn get_styles() -> clap::builder::Styles {
     styles=get_styles(),
 )]
 pub struct Arguments {
+    /// Parse CSV specifically using the DocsFiscais mapping.
+    /// This ensures high robustness by validating column names and data types.
+    #[arg(short('m'), long, requires("parse_csv_file"), verbatim_doc_comment)]
+    pub map_docs_fiscais: bool,
+
     /// FILE input (or standard input if empty).
     pub file: Option<PathBuf>,
 

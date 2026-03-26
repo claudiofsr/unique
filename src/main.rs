@@ -31,9 +31,21 @@ clear && cargo run -- -h
 cargo b -r && cargo install --path=.
 
 Enum NumberFormat: O usuário tem controle total via CLI:
-unique arquivo.csv --csv -n (Padrão: 1.234,56 -> 1234.56)
-unique arquivo.csv --csv -n --num-format international (Padrão: 1,234.56 -> 1234.56)
+unique arquivo.csv --csv -f (Padrão: 1.234,56 -> 1234.56)
+unique arquivo.csv --csv -f --number-format international (Padrão: 1,234.56 -> 1234.56)
 */
+
+/// Represents the result of a single line analysis
+#[derive(Debug)]
+pub struct AnalyzedLine {
+    pub line_number: usize,
+    pub content: String,
+    pub column_count: usize,
+    pub is_empty: bool,
+}
+
+// Alias opcional para simplificar a assinatura da função
+pub type AnalysisResult = UniqueResult<Vec<Option<AnalyzedLine>>>;
 
 fn main() -> UniqueResult<()> {
     if let Err(error) = run() {
@@ -43,65 +55,129 @@ fn main() -> UniqueResult<()> {
     Ok(())
 }
 
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 fn run() -> UniqueResult<()> {
     let timer = ExecutionTime::start();
     let arguments: Arguments = Arguments::parse();
 
-    // The input is file or stdin.
+    // The input is a file or standard input (stdin)
     let input_file: Option<PathBuf> = arguments.file.clone();
     let mut buffer: Box<dyn BufRead> = read_file_or_stdin(&input_file);
 
     let mut delimiter_set: HashSet<usize> = HashSet::new();
     let mut uniq_hashes: HashSet<String> = HashSet::new();
     let mut num_repeated_lines: usize = 0;
-    let mut num_empty_lines: usize = 0;
 
-    // Evitar ler todo o arquivo na memória
-    // Ler apenas uma linha de cada vez do Buffer para análise
+    // Shared atomic counter for empty lines across parallel threads
+    let atomic_empty_lines = AtomicUsize::new(0);
 
     let mut line_number: usize = 0;
     let mut num_bytes: usize = 1;
 
+    // Stores the CSV header used for Serde mapping (DocsFiscais)
+    let mut header_string = String::new();
+
+    // --- STEP 1: HEADER TREATMENT (Finding the first non-empty line) ---
+    if arguments.parse_csv_file {
+        loop {
+            let mut header_bytes: Vec<u8> = Vec::new();
+            num_bytes = buffer.read_until(NEWLINE_BYTE, &mut header_bytes)?;
+
+            // Exit if end of file (EOF) is reached without finding content
+            if num_bytes == 0 {
+                break;
+            }
+
+            let line_utf8 = get_string_utf8_from_slice_bytes(&header_bytes);
+
+            // Skip and COUNT empty lines at the very beginning
+            if line_utf8.trim().is_empty() {
+                // We count them so the final report remains accurate
+                atomic_empty_lines.fetch_add(1, Ordering::Relaxed);
+                continue;
+            }
+
+            // HEADER FOUND: The first non-empty line
+            line_number += 1;
+            header_string = line_utf8;
+
+            // Print the header immediately unless we are in "repeated lines only" mode
+            if !arguments.only_print_repeated_lines {
+                println!("{}", header_string);
+            }
+
+            // Track column count for later validation
+            let header_cols = header_string.split(arguments.separator).count();
+            delimiter_set.insert(header_cols);
+
+            break; // Header logic finished, proceed to data
+        }
+    }
+
+    // --- STEP 2: DATA PROCESSING (Chunked Parallel Loop) ---
     while num_bytes > 0 {
-        // Vec<line_number, line>
         let mut vec_lines: Vec<(usize, Vec<u8>)> = Vec::new();
 
+        // Fill a chunk of lines to process in parallel
         loop {
             let mut line: Vec<u8> = Vec::new();
             num_bytes = buffer.read_until(NEWLINE_BYTE, &mut line)?;
             if num_bytes == 0 {
-                // EOF is reached
                 break;
             }
+
             line_number += 1;
             vec_lines.push((line_number, line));
+
             if vec_lines.len() >= CHUNK_SIZE {
                 break;
             }
         }
 
-        let vector: UniqueResult<Vec<(usize, String, usize, bool)>> = vec_lines
-            .into_par_iter() // rayon: parallel iterator
-            .map(|(line_number, vec_bytes)| {
+        // PARALLEL ENGINE: Process the chunk using Rayon
+        let vector: AnalysisResult = vec_lines
+            .into_par_iter()
+            .map(|(l_num, vec_bytes)| {
                 let line_utf8: String = get_string_utf8_from_slice_bytes(&vec_bytes);
-                let (new_line, num_cols) = analise_line(&arguments, &line_utf8, line_number)?;
-                let empty_lines: bool = line_utf8.trim().is_empty();
-                Ok((line_number, new_line, num_cols, empty_lines))
+                let is_empty = line_utf8.trim().is_empty();
+
+                // 1. Handle Empty Lines
+                if is_empty {
+                    atomic_empty_lines.fetch_add(1, Ordering::Relaxed);
+                    if arguments.remove_empty_lines {
+                        return Ok(None);
+                    }
+                    return Ok(Some(AnalyzedLine {
+                        line_number: l_num,
+                        content: String::new(),
+                        column_count: 0,
+                        is_empty: true,
+                    }));
+                }
+
+                // 2. Handle Data Lines
+                let (new_line, num_cols) = if arguments.map_docs_fiscais {
+                    analise_line_with_serde(&arguments, &line_utf8, &header_string)?
+                } else {
+                    analise_line(&arguments, &line_utf8, l_num)?
+                };
+
+                Ok(Some(AnalyzedLine {
+                    line_number: l_num,
+                    content: new_line,
+                    column_count: num_cols,
+                    is_empty: false,
+                }))
             })
             .collect();
 
-        // Não é necessário ordenar, pois rayon coleta já ordenado!
-        // No sorting required as rayon collects already sorted!
-        // vector.par_sort_by_key(|&(line_number,..)| line_number);
-
-        for tuple in vector? {
-            let (_line_number, line, num_cols, empty_lines) = tuple;
-            // convert a boolean to an integer
-            num_empty_lines += empty_lines as usize;
+        // --- STEP 3: APPLY RESULTS ---
+        for analyzed in vector?.into_iter().flatten() {
             apply_analysis(
                 &arguments,
-                &line,
-                num_cols,
+                &analyzed.content,
+                analyzed.column_count,
                 &mut num_repeated_lines,
                 &mut uniq_hashes,
                 &mut delimiter_set,
@@ -109,8 +185,13 @@ fn run() -> UniqueResult<()> {
         }
     }
 
+    // Sync the total empty lines count from the atomic counter
+    let num_empty_lines = atomic_empty_lines.load(Ordering::Relaxed);
+
+    // Final CSV structure analysis
     analise_csv_file(&arguments, delimiter_set);
 
+    // Show statistics (Unique, Repeated, Total, Run Time)
     print_verbose(
         &arguments,
         timer,
@@ -178,7 +259,13 @@ fn get_string_utf8_from_slice_bytes(slice_bytes: &[u8]) -> String {
     string_utf8
 }
 
-fn analise_line(
+/// Standard line analysis.
+///
+/// This function performs a generic CSV parsing. It splits the line into columns
+/// based on the provided separator, applies optional formatting (date, key, numbers),
+/// and rebuilds the line using a semicolon (`;`) as the delimiter.
+/// Finally, it applies whitespace normalization and trimming if requested.
+pub fn analise_line(
     args: &Arguments,
     line: &str,
     _line_number: usize,
@@ -187,57 +274,23 @@ fn analise_line(
     let mut num_cols: usize = 0;
 
     if args.parse_csv_file {
-        //let perdcomps: Vec<PerDcomp> = parse_csv_with_serde(&modified_line, args, line_number)?;
-        //for perdcomp in perdcomps { println!("perdcomp: {perdcomp:?}") }
-
         let cols: Vec<String> = parse_csv_line(&modified_line, args);
 
-        // https://docs.rs/csv/latest/csv/struct.WriterBuilder.html
-        // Add double quotes when necessary
+        // Reconstruct the CSV line with standard settings
+        // Using semicolon ';' for consistency in output/hashing
         let mut wtr = WriterBuilder::new()
-            //.delimiter(args.separator as u8)
             .delimiter(b';')
             .has_headers(false)
             .flexible(false)
             .from_writer(vec![]);
+
         wtr.write_record(&cols)?;
 
-        // .into_error() converte o erro do CSV em um std::io::Error comum
         modified_line = String::from_utf8(wtr.into_inner().map_err(|e| e.into_error())?)?;
-
         num_cols = cols.len();
-
-        //modified_line = cols.join(&args.separator.to_string());
-
-        /*
-        let perdcomps: Vec<PerDcomp> = parse_csv_with_serde(&modified_line, args, line_number)?;
-
-        // When writing records with Serde using structs,
-        // the header row is written automatically.
-
-        let mut wtr = WriterBuilder::new()
-            //.delimiter(args.separator as u8)
-            .delimiter(b';')
-            .has_headers(false)
-            .flexible(false)
-            .from_writer(vec![]);
-
-        for perdcomp in &perdcomps {
-            //println!("perdcomp: {perdcomp:?}");
-            if line_number == 1 {
-                continue;
-            }
-            wtr.serialize(perdcomp)?;
-        }
-
-        wtr.flush()?;
-
-        num_cols = perdcomps.len();
-        */
-
-        //println!("num_cols: {num_cols} ; cols: {cols:?} ; modified_line: {modified_line:?}\n");
     }
 
+    // Common post-processing block
     if args.replace_multiple_whitespaces {
         modified_line = modified_line.replace_multiple_whitespaces();
     }
@@ -249,6 +302,10 @@ fn analise_line(
     Ok((modified_line, num_cols))
 }
 
+/// Helper function for parse_csv_line.
+///
+/// Parses a single CSV line into a Vector of Strings, applying column-level
+/// replacements and formatting.
 fn parse_csv_line(line: &str, args: &Arguments) -> Vec<String> {
     let mut reader = ReaderBuilder::new()
         .quoting(true)
@@ -267,6 +324,7 @@ fn parse_csv_line(line: &str, args: &Arguments) -> Vec<String> {
             record
                 .iter()
                 .map(|col| {
+                    // Normalize internal line breaks often found in messy CSVs
                     let mut s = col.replace("\\n", " ");
                     if args.format_date {
                         s = format_date(s);
@@ -290,7 +348,7 @@ fn parse_csv_with_serde(
     line: &str,
     args: &Arguments,
     line_number: usize,
-) -> UniqueResult<Vec<PerDcomp>> {
+) -> UniqueResult<Vec<DocsFiscais>> {
     let mut reader = ReaderBuilder::new()
         .quoting(true)
         .double_quote(true)
@@ -302,7 +360,7 @@ fn parse_csv_with_serde(
 
     //println!("reader {reader:?}\n");
 
-    let mut records: Vec<PerDcomp> = Vec::new();
+    let mut records: Vec<DocsFiscais> = Vec::new();
 
     for result in reader.deserialize() {
         if line_number == 1 {
@@ -310,7 +368,7 @@ fn parse_csv_with_serde(
         }
         // Notice that we need to provide a type hint for automatic
         // deserialization.
-        let record: PerDcomp = result?;
+        let record: DocsFiscais = result?;
         //println!("{:?}", record);
         records.push(record);
     }
@@ -376,6 +434,101 @@ fn analise_csv_file(args: &Arguments, delimiter_set: HashSet<usize>) {
     }
 }
 
+/// Robust line analysis using the `DocsFiscais` struct mapping.
+///
+/// This function creates a virtual two-line CSV (header + current line) to allow
+/// `serde` to map columns by name rather than position. This ensures high
+/// robustness against schema changes.
+///
+/// It leverages the struct's internal `deserialize_with` logic for data
+/// validation and then serializes the record back to a semicolon-delimited string.
+pub fn analise_line_with_serde(
+    args: &Arguments,
+    line: &str,
+    header: &str,
+) -> UniqueResult<(String, usize)> {
+    // 1. Prepare a virtual mini-CSV to provide context to the Serde deserializer
+    let virtual_csv = format!("{}\n{}", header, line);
+
+    let mut reader = ReaderBuilder::new()
+        .quoting(true)
+        .double_quote(true)
+        .has_headers(true)
+        .trim(csv::Trim::All)
+        .delimiter(args.separator as u8)
+        .from_reader(virtual_csv.as_bytes());
+
+    let headers = reader.headers()?.clone();
+    let num_cols = headers.len();
+    let mut modified_line = String::new();
+
+    // 2. Map the CSV data to the robust DocsFiscais struct
+    // The loop iterates only once for the single data line provided
+    for result in reader.deserialize::<DocsFiscais>() {
+        match result {
+            Ok(record) => {
+                // Writer configuration identical to standard analise_line
+                let mut wtr = WriterBuilder::new()
+                    .delimiter(b';')
+                    .has_headers(false)
+                    .flexible(false)
+                    .from_writer(vec![]);
+
+                wtr.serialize(record)?;
+
+                let bytes = wtr.into_inner().map_err(|e| e.into_error())?;
+                // Remove trailing newline added by the CSV writer
+                modified_line = String::from_utf8(bytes)?.trim_end().to_string();
+            }
+            Err(e) => {
+                let err_msg = e.to_string();
+
+                // Attempt to identify the failing column by extracting the index from the error message
+                let col_info = if let Some(idx) = extract_field_index(&err_msg) {
+                    headers
+                        .get(idx)
+                        .map(|name| format!("column '{}' (index {})", name, idx))
+                        .unwrap_or_else(|| format!("index {}", idx))
+                } else {
+                    "field with incompatible format".to_string()
+                };
+
+                return Err(UniqueError::Mapping(format!(
+                    "Failed at {}; Error: {}",
+                    col_info, err_msg
+                )));
+            }
+        }
+    }
+
+    // 3. Post-processing (Identical to standard analise_line)
+    // Ensures hashing consistency regardless of the analysis engine used
+    if args.replace_multiple_whitespaces {
+        modified_line = modified_line.replace_multiple_whitespaces();
+    }
+
+    if args.trim_line {
+        modified_line = modified_line.trim().to_string();
+    }
+
+    Ok((modified_line, num_cols))
+}
+
+/// Helper mais robusto para capturar o índice da coluna
+fn extract_field_index(msg: &str) -> Option<usize> {
+    // Procura por "field " seguido de dígitos
+    let keyword = "field ";
+    if let Some(start) = msg.find(keyword) {
+        let after_field = &msg[start + keyword.len()..];
+        let end = after_field
+            .find(|c: char| !c.is_numeric())
+            .unwrap_or(after_field.len());
+        let num_str = &after_field[..end];
+        return num_str.parse::<usize>().ok();
+    }
+    None
+}
+
 fn print_verbose(
     args: &Arguments,
     timer: ExecutionTime,
@@ -384,18 +537,27 @@ fn print_verbose(
     num_empty_lines: usize,
 ) {
     // cat file | wc -l
+    // 1. O número de hashes únicos no Set inclui o hash de uma linha vazia (se houver alguma no arquivo)
     let num_unique_lines = uniq_hashes.len();
+
+    // 2. O total original é a soma de:
+    //    Unique (non-empty) + Repeated (non-empty) + Total Empty
+    //    Nota: Na lógica de hashing, se houverem 10 linhas vazias,
+    //    1 entra em uniq_hashes e 9 entram em num_repeated_lines.
+    //    Para simplificar o relatório, tratamos num_empty_lines como um bloco separado.
     let num_total_lines_original = num_unique_lines + num_repeated_lines;
+
+    // 3. Cálculo da largura máxima para alinhamento visual
     let max_len = num_total_lines_original.to_string().len();
 
+    // 4. Cálculo das linhas no arquivo final:
+    //    Se remove_empty_lines for TRUE: tiramos a entrada da linha vazia do total de únicos.
+    //    Se for FALSE: o num_unique_lines já representa o arquivo final (deduplicado).
     let num_total_lines_final = if args.remove_empty_lines && num_empty_lines > 0 {
-        num_unique_lines - 1
+        num_unique_lines.saturating_sub(1)
     } else {
         num_unique_lines
     };
-
-    // Show number of unique, repeated and total lines
-    // eprintln! macro prints to the standard error stream
 
     if args.verbose {
         eprintln!();
