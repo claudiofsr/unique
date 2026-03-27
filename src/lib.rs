@@ -1,10 +1,16 @@
-pub mod args;
+mod args;
+mod docs_fiscais;
 mod error;
-pub mod structures;
+mod io_handler;
+mod models;
+mod processor;
 
 pub use args::*;
+pub use docs_fiscais::*;
 pub use error::{UniqueError, UniqueResult};
-pub use structures::*;
+pub use io_handler::*;
+pub use models::*;
+pub use processor::*;
 
 use chrono::NaiveDate;
 use regex::Regex;
