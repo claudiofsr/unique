@@ -1,11 +1,11 @@
 use clap::Parser;
+use csv::StringRecord;
 use execution_time::ExecutionTime;
 use rayon::prelude::*;
 
 use std::{
     collections::HashSet,
     io::BufRead,
-    path::PathBuf,
     process,
     sync::atomic::{AtomicUsize, Ordering},
 };
@@ -38,70 +38,67 @@ fn main() -> UniqueResult<()> {
     Ok(())
 }
 
+/// Main orchestration logic for the unique line processor.
+///
+/// This function coordinates the reading, parallel processing,
+/// and sequential deduplication of lines.
 fn run() -> UniqueResult<()> {
-    let timer = ExecutionTime::start();
+    let timer = execution_time::ExecutionTime::start();
     let arguments: Arguments = Arguments::parse();
 
-    // The input is a file or standard input (stdin)
-    let input_file: Option<PathBuf> = arguments.file.clone();
-    let mut buffer: Box<dyn BufRead> = read_file_or_stdin(&input_file)?;
+    // Initialize input buffer (File or Stdin)
+    let mut buffer: Box<dyn BufRead> = read_file_or_stdin(&arguments.file)?;
 
+    // Shared state for tracking uniqueness and consistency
     let mut delimiter_set: HashSet<usize> = HashSet::new();
     let mut uniq_hashes: HashSet<String> = HashSet::new();
     let mut num_repeated_lines: usize = 0;
-
-    // Shared atomic counter for empty lines across parallel threads
     let atomic_empty_lines = AtomicUsize::new(0);
 
+    // CSV Header management
+    let mut header_record: Option<StringRecord> = None;
     let mut line_number: usize = 0;
-    let mut num_bytes: usize = 1;
+    let mut num_bytes: usize = 1; // Control variable for the read loops
 
-    // Stores the CSV header used for Serde mapping (DocsFiscais)
-    let mut header_string = String::new();
-
-    // --- STEP 1: HEADER TREATMENT (Finding the first non-empty line) ---
+    // --- STEP 1: HEADER TREATMENT ---
     if arguments.parse_csv_file {
         loop {
             let mut header_bytes: Vec<u8> = Vec::new();
             num_bytes = buffer.read_until(NEWLINE_BYTE, &mut header_bytes)?;
 
-            // Exit if end of file (EOF) is reached without finding content
             if num_bytes == 0 {
                 break;
-            }
+            } // EOF reached before finding a header
 
-            let line_utf8 = get_string_utf8_from_slice_bytes(&header_bytes)?;
+            let header_string = get_string_utf8_from_slice_bytes(&header_bytes)?;
 
-            // Skip and COUNT empty lines at the very beginning
-            if line_utf8.trim().is_empty() {
-                // We count them so the final report remains accurate
+            // Skip and count empty lines before the header
+            if header_string.trim().is_empty() {
                 atomic_empty_lines.fetch_add(1, Ordering::Relaxed);
                 continue;
             }
 
-            // HEADER FOUND: The first non-empty line
+            // Header Found: Parse into StringRecord for Serde context
             line_number += 1;
-            header_string = line_utf8;
 
-            // Print the header immediately unless we are in "repeated lines only" mode
+            let h_record = StringRecord::from_iter(header_string.split(arguments.separator));
+
             if !arguments.only_print_repeated_lines {
                 println!("{}", header_string);
             }
 
-            // Track column count for later validation
-            let header_cols = header_string.split(arguments.separator).count();
-            delimiter_set.insert(header_cols);
-
-            break; // Header logic finished, proceed to data
+            delimiter_set.insert(h_record.len());
+            header_record = Some(h_record); // Persist header context for the processing loop
+            break;
         }
     }
 
-    // --- STEP 2: DATA PROCESSING (Chunked Parallel Loop) ---
+    // --- STEP 2: CHUNKED PARALLEL PROCESSING ---
     while num_bytes > 0 {
-        let mut vec_lines: Vec<(usize, Vec<u8>)> = Vec::new();
+        let mut vec_lines: Vec<(usize, Vec<u8>)> = Vec::with_capacity(CHUNK_SIZE);
 
-        // Fill a chunk of lines to process in parallel
-        loop {
+        // Fill chunk sequentially from the buffer
+        for _ in 0..CHUNK_SIZE {
             let mut line: Vec<u8> = Vec::new();
             num_bytes = buffer.read_until(NEWLINE_BYTE, &mut line)?;
             if num_bytes == 0 {
@@ -110,59 +107,79 @@ fn run() -> UniqueResult<()> {
             }
             line_number += 1;
             vec_lines.push((line_number, line));
-            if vec_lines.len() >= CHUNK_SIZE {
-                break;
-            }
         }
 
-        // PARALLEL ENGINE: Process the chunk using Rayon
-        let vector: AnalysisResult = vec_lines
+        if vec_lines.is_empty() {
+            break;
+        }
+
+        // Process chunk in parallel: transformation + hashing
+        let processed_chunk: UniqueResult<Vec<Option<(AnalyzedLine, String)>>> = vec_lines
             .into_par_iter() // rayon: parallel iterator
-            .map(|(line_number, vec_bytes)| {
-                let line_utf8: String = get_string_utf8_from_slice_bytes(&vec_bytes)?;
-                let is_empty = line_utf8.trim().is_empty();
+            .map(|(ln, bytes)| {
+                let line_utf8 = get_string_utf8_from_slice_bytes(&bytes)?;
 
                 // 1. Handle Empty Lines
-                if is_empty {
+                if line_utf8.trim().is_empty() {
                     atomic_empty_lines.fetch_add(1, Ordering::Relaxed);
-                    if arguments.remove_empty_lines {
-                        return Ok(None);
-                    }
-                    return Ok(Some(AnalyzedLine::empty(line_number)));
+                    return Ok(if arguments.remove_empty_lines {
+                        None
+                    } else {
+                        Some((AnalyzedLine::empty(ln), String::new()))
+                    });
                 }
 
                 // 2. Handle Data Lines
-                let (new_line, num_cols) = if arguments.map_docs_fiscais {
-                    analise_line_with_serde(&arguments, &line_utf8, &header_string)?
+                // Choose the appropriate processing engine
+                let (content, num_cols) = if arguments.map_docs_fiscais {
+                    analise_line_with_serde(&line_utf8, &header_record, &arguments)?
                 } else {
-                    analise_line(&arguments, &line_utf8)?
+                    analise_line(&line_utf8, &arguments)?
                 };
 
-                Ok(Some(AnalyzedLine {
-                    line_number,
-                    content: new_line,
-                    column_count: num_cols,
-                    is_empty: false,
-                }))
+                // Generate hash for deduplication
+                let mut filter = content.clone();
+                if arguments.ignore_case {
+                    filter = filter.to_lowercase();
+                }
+                let hash = blake3::hash(filter.as_bytes()).to_string();
+
+                Ok(Some((
+                    AnalyzedLine {
+                        line_number: ln,
+                        content,
+                        column_count: num_cols,
+                        is_empty: false,
+                    },
+                    hash,
+                )))
             })
             .collect();
 
-        // Não é necessário ordenar, pois rayon coleta já ordenado!
-        // No sorting required as rayon collects already sorted!
-        // vector.par_sort_by_key(|&(line_number,..)| line_number);
+        // --- STEP 3: SEQUENTIAL OUTPUT AND DEDUPLICATION ---
+        for item in processed_chunk?.into_iter().flatten() {
+            let (analyzed, hash) = item;
 
-        // --- STEP 3: APPLY RESULTS ---
-        for analyzed in vector?.into_iter().flatten() {
-            apply_analysis(
-                &arguments,
-                &analyzed.content,
-                analyzed.column_count,
-                &mut num_repeated_lines,
-                &mut uniq_hashes,
-                &mut delimiter_set,
-            );
+            if uniq_hashes.insert(hash) {
+                // New unique line found
+                if !arguments.only_print_repeated_lines {
+                    println!("{}", analyzed.content);
+                }
+            } else {
+                // Duplicate line found
+                if arguments.only_print_repeated_lines {
+                    println!("{}", analyzed.content);
+                }
+                num_repeated_lines += 1;
+            }
+
+            if arguments.parse_csv_file {
+                delimiter_set.insert(analyzed.column_count);
+            }
         }
     }
+
+    // --- STEP 4: FINAL REPORT ---
 
     // Sync the total empty lines count from the atomic counter
     let num_empty_lines = atomic_empty_lines.load(Ordering::Relaxed);
@@ -180,41 +197,6 @@ fn run() -> UniqueResult<()> {
     );
 
     Ok(())
-}
-
-fn apply_analysis(
-    args: &Arguments,
-    line: &str,
-    num_cols: usize,
-    num_repeated_lines: &mut usize,
-    uniq_hashes: &mut HashSet<String>,
-    delimiter_set: &mut HashSet<usize>,
-) {
-    let mut filter: String = line.to_owned();
-
-    if args.ignore_case {
-        filter = filter.to_lowercase();
-    }
-
-    let hash: String = blake3::hash(filter.as_bytes()).to_string();
-
-    if uniq_hashes.insert(hash) {
-        if args.remove_empty_lines && line.trim().is_empty() {
-            return;
-        }
-        if !args.only_print_repeated_lines {
-            println!("{line}");
-        }
-    } else {
-        if args.only_print_repeated_lines {
-            println!("{line}");
-        }
-        *num_repeated_lines += 1;
-    }
-
-    if args.parse_csv_file {
-        delimiter_set.insert(num_cols);
-    }
 }
 
 fn analise_csv_file(args: &Arguments, delimiter_set: HashSet<usize>) {
