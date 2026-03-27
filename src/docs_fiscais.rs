@@ -4,7 +4,11 @@ use serde::{self, de::Error, Deserialize, Deserializer, Serialize, Serializer};
 
 const DATA_FORMAT: &str = "%d/%m/%Y";
 
+// Adicionar #[serde(default)] no topo da struct. Isso diz ao Rust:
+// "Se uma coluna não existir no arquivo, preencha o campo com o valor padrão (String vazia, 0 ou None)".
+
 #[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct DocsFiscais {
     #[serde(rename = "CNPJ do Contribuinte : NF Item (Todos)")]
     pub contribuinte_cnpj: String,
@@ -332,5 +336,119 @@ mod br_date_opt {
                 .map_err(|_| Error::custom(format!("Data inválida: {}", s))),
             _ => Ok(None),
         }
+    }
+}
+
+/// cargo test -- --show-output tests_docs_fiscais
+#[cfg(test)]
+mod tests_docs_fiscais {
+    use super::*;
+    use chrono::NaiveDate;
+    use csv::ReaderBuilder;
+
+    /// Teste para a lógica de identificação de valores nulos/vazios
+    #[test]
+    fn test_is_null_val() {
+        assert!(is_null_val(""));
+        assert!(is_null_val("  "));
+        assert!(is_null_val("<N/D>"));
+        assert!(is_null_val("n/a"));
+        assert!(is_null_val("NULO"));
+        assert!(is_null_val("*DIVERSOS*"));
+        assert!(!is_null_val("123.45"));
+        assert!(!is_null_val("352310..."));
+    }
+
+    /// Teste de integração: Simula uma linha de CSV completa para a struct DocsFiscais
+    #[test]
+    fn test_docs_fiscais_deserialization() {
+        // Criamos um CSV com os headers exatamente como definidos no rename do Serde
+        // Nota: Usamos ponto e vírgula como delimitador
+        let data = "\
+CNPJ do Contribuinte : NF Item (Todos);CRT : NF (Todos);Número da Nota : NF Item (Todos);Dia da Emissão : NF Item (Todos);Valor Total : NF (Todos) SOMA;ICMS: Alíquota : NF Item (Todos) NOISE OR
+12.345.678/0001-99;3;123.456;25/12/2023;1.500,50;18,00";
+
+        let mut reader = ReaderBuilder::new()
+            .delimiter(b';')
+            .has_headers(true)
+            .from_reader(data.as_bytes());
+
+        let result = reader.deserialize::<DocsFiscais>().next().unwrap();
+
+        assert!(
+            result.is_ok(),
+            "Falha ao deserializar DocsFiscais: {:?}",
+            result.err()
+        );
+        let doc = result.unwrap();
+
+        // Validação de strings simples
+        assert_eq!(doc.contribuinte_cnpj, "12.345.678/0001-99");
+
+        // Validação de Option<i64> (com remoção de ponto de milhar)
+        assert_eq!(doc.regime_tributario, Some(3));
+        assert_eq!(doc.num_doc, Some(123456));
+
+        // Validação de Option<NaiveDate>
+        assert_eq!(
+            doc.dia_emissao,
+            Some(NaiveDate::from_ymd_opt(2023, 12, 25).unwrap())
+        );
+
+        // Validação de Option<f64> (formato brasileiro)
+        assert_eq!(doc.valor_total, Some(1500.50));
+        assert_eq!(doc.aliq_icms, Some(18.00));
+    }
+
+    /// Teste específico para casos de erro e valores nulos no CSV
+    #[test]
+    fn test_docs_fiscais_null_and_edge_cases() {
+        let data = "\
+CNPJ do Contribuinte : NF Item (Todos);CRT : NF (Todos);Número da Nota : NF Item (Todos);Dia da Emissão : NF Item (Todos);Valor Total : NF (Todos) SOMA
+Empresa Teste;N/A;<N/D>; ;NULO";
+
+        let mut reader = ReaderBuilder::new()
+            .delimiter(b';')
+            .has_headers(true)
+            .from_reader(data.as_bytes());
+
+        let doc: DocsFiscais = reader.deserialize().next().unwrap().unwrap();
+
+        // Todos os campos numéricos e datas devem resultar em None para os padrões de null_patterns
+        assert_eq!(doc.regime_tributario, None);
+        assert_eq!(doc.num_doc, None);
+        assert_eq!(doc.dia_emissao, None);
+        assert_eq!(doc.valor_total, None);
+    }
+
+    /// Teste isolado para o conversor de data BR
+    #[test]
+    fn test_br_date_deserializer() {
+        use serde_json;
+
+        // Simulando como o Serde veria uma string de data
+        #[derive(Deserialize, Serialize, Debug, PartialEq)]
+        struct DateWrapper {
+            #[serde(with = "br_date_opt")]
+            date: Option<NaiveDate>,
+        }
+
+        // Caso Sucesso
+        let json = r#"{"date": "31/01/2024"}"#;
+        let decoded: DateWrapper = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            decoded.date,
+            Some(NaiveDate::from_ymd_opt(2024, 1, 31).unwrap())
+        );
+
+        // Caso Vazio
+        let json_empty = r#"{"date": ""}"#;
+        let decoded_empty: DateWrapper = serde_json::from_str(json_empty).unwrap();
+        assert_eq!(decoded_empty.date, None);
+
+        // Caso Inválido (Deve retornar Erro)
+        let json_err = r#"{"date": "31-01-2024"}"#;
+        let res: Result<DateWrapper, _> = serde_json::from_str(json_err);
+        assert!(res.is_err());
     }
 }

@@ -41,6 +41,10 @@ features = [
     "derive",
 ]
 
+[dev-dependencies]
+# Usado apenas para os testes unitários (proposto anteriormente)
+serde_json = "1.0"
+
 [lints.rust]
 unsafe_code = "forbid"
 
