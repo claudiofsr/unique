@@ -116,7 +116,7 @@ fn run() -> UniqueResult<()> {
         // Process chunk in parallel: transformation + hashing
         let processed_chunk: UniqueResult<Vec<Option<(AnalyzedLine, String)>>> = vec_lines
             .into_par_iter() // rayon: parallel iterator
-            .map(|(ln, bytes)| {
+            .map(|(line_number, bytes)| {
                 let line_utf8 = get_string_utf8_from_slice_bytes(&bytes)?;
 
                 // 1. Handle Empty Lines
@@ -125,7 +125,7 @@ fn run() -> UniqueResult<()> {
                     return Ok(if arguments.remove_empty_lines {
                         None
                     } else {
-                        Some((AnalyzedLine::empty(ln), String::new()))
+                        Some((AnalyzedLine::empty(line_number), String::new()))
                     });
                 }
 
@@ -146,7 +146,7 @@ fn run() -> UniqueResult<()> {
 
                 Ok(Some((
                     AnalyzedLine {
-                        line_number: ln,
+                        line_number,
                         content,
                         column_count: num_cols,
                         is_empty: false,
