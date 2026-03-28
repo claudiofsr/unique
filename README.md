@@ -62,7 +62,10 @@ Then run the program.
 
 ### 1. Basic Text Deduplication
 #### Remove duplicates while ignoring case and extra spaces:
+```
 echo -e "apple\nApple\n  apple  " | unique -i -t
+```
+output:
 ```
 apple
 ```
