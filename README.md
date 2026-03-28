@@ -121,7 +121,7 @@ apple
    • Lines in final file   :          2
 
 ⏱  PERFORMANCE:
-   • Total run time        : 990.157µs
-   • Throughput            : 6059 lines/sec
+   • Total run time        : 0.001005 second (1.005077ms)
+   • Throughput            : 6479 lines/sec
 =============================================
 ```
