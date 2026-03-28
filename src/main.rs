@@ -290,7 +290,10 @@ fn print_verbose(
         );
 
         eprintln!("\n⏱️  PERFORMANCE:");
-        eprintln!("   • Total run time        : {:?}", elapsed);
+        eprintln!(
+            "   • Total run time        : {:?}",
+            timer.get_elapsed_time()
+        );
         eprintln!("   • Throughput            : {} lines/sec", lines_per_sec);
         eprintln!("{}\n", "=".repeat(45));
     }

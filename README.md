@@ -96,16 +96,32 @@ grep "ERROR 500" server.log | unique -v
 ## Statistics Example (--verbose)
 Running with -v will output the following to stderr:
 
+```
 echo -e "apple\nApple\n\n\n\n  apple  " | unique -vi -t
+```
 
+output:
 ```
 apple
 
-Number of lines in the original file: 6
-Number of unique lines              : 2
-Number of repeated lines            : 4
-Number of empty lines               : 3
-Number of lines in the final file   : 2
 
-Total Run Time: "0.002913 second (2.912845ms)"
+=============================================
+📊 EXECUTIONS SUMMARY
+=============================================
+📝 INPUT STATS:
+   • Total lines processed :          6
+   • Total empty lines     :          3
+
+🔍 PROCESSING DETAILS:
+   • Unique lines found    :          2
+   • Repeated lines removed:          4
+   • Deduplication rate    :      66.67%
+
+💾 OUTPUT STATS:
+   • Lines in final file   :          2
+
+⏱  PERFORMANCE:
+   • Total run time        : 990.157µs
+   • Throughput            : 6059 lines/sec
+=============================================
 ```
