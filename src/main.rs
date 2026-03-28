@@ -230,7 +230,7 @@ fn print_verbose(
     num_repeated_lines: usize,
     num_empty_lines: usize,
 ) {
-    let elapsed = timer.get_duration();
+    let duration = timer.get_duration();
     let num_unique_lines = uniq_hashes.len();
     let num_total_lines_original = num_unique_lines + num_repeated_lines;
 
@@ -242,8 +242,8 @@ fn print_verbose(
     };
 
     // Cálculo de vazão (throughput)
-    let lines_per_sec = if elapsed.as_secs_f64() > 0.0 {
-        (num_total_lines_original as f64 / elapsed.as_secs_f64()) as usize
+    let lines_per_sec = if duration.as_secs_f64() > 0.0 {
+        (num_total_lines_original as f64 / duration.as_secs_f64()) as usize
     } else {
         0
     };
