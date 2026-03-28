@@ -81,8 +81,7 @@ unique data.csv --csv --format-key --format-date --format-number --verbose
 
 ### 4. CSV Processing (International Standard)
 ```
-printf "chave_nfe; data_emissao; valor_total\n35230100000000000000000000000000000000000002; 01 / 05 / 2023 ; 1,250.50\n" > data.csv
-unique data.csv -c -s ',' -f -n international
+printf "chave_nfe; data_emissao; valor_total\n35230100000000000000000000000000000000000003; 01 / 05 / 2023 ; 1,250.50\n" > data.csv
 unique data.csv --csv --format-key --format-date --format-number -n international --verbose
 ```
 
