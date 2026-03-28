@@ -85,7 +85,7 @@ pub struct Arguments {
     /// Formats the date in %d/%m/%Y format in CSV files.
     /// Example:
     /// "1 / 1 / 2023" => "01/01/2023"
-    #[arg(short('d'), default_value_t = false, requires("parse_csv_file"))]
+    #[arg(short('d'), long, default_value_t = false, requires("parse_csv_file"))]
     pub format_date: bool,
 
     /// Format 44-digit NFe key and validates check digit in CSV files.
