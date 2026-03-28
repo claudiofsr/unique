@@ -29,7 +29,7 @@ Options:
           All lines must have the same number of columns based on the separator.
   -s, --separator <SEPARATOR>
           Set the field separator (delimiter) for CSV files to: comma ',' semicolon ';' pipe '|' or another char [default: ;]
-  -d, --format_date
+  -d, --format-date
           Formats the date in %d/%m/%Y format in CSV files. Example: "1 / 1 / 2023" => "01/01/2023"
   -k, --format-key
           Format 44-digit NFe key and validates check digit in CSV files
