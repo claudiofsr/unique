@@ -291,7 +291,7 @@ fn print_verbose(
 
         eprintln!("\n⏱️  PERFORMANCE:");
         eprintln!(
-            "   • Total run time        : {:?}",
+            "   • Total run time        : {}",
             timer.get_elapsed_time()
         );
         eprintln!("   • Throughput            : {} lines/sec", lines_per_sec);
