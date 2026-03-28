@@ -79,13 +79,15 @@ unique input.txt -e -t -w > cleaned_output.txt
 ### 3. CSV Processing (Brazilian Standard)
 ```
 printf "chave_nfe; data_emissao; valor_total\n35230100000000000000000000000000000000000001; 01 / 05 / 2023 ; 1.250,50\n" > data.csv
-unique data.csv --csv --format-key --format-date --format-number --verbose
+unique data.csv --csv --format-key --format-date --format-number --verbose > /tmp/output.csv
+head -n 5 /tmp/output.csv
 ```
 
 ### 4. CSV Processing (International Standard)
 ```
 printf "chave_nfe; data_emissao; valor_total\n35230100000000000000000000000000000000000003; 01 / 05 / 2023 ; 1,250.50\n" > data.csv
-unique data.csv --csv --format-key --format-date --format-number -n international --verbose
+unique data.csv --csv --format-key --format-date --format-number -n international --verbose > /tmp/output.csv
+head -n 5 /tmp/output.csv
 ```
 
 ### 5. Finding Duplicates Only
