@@ -69,17 +69,22 @@ apple
 
 ### 2. Cleaning up a Text File
 #### Remove empty lines, trim whitespace, and normalize spaces:
+```
 unique input.txt -e -t -w > cleaned_output.txt
+```
 
 ### 3. CSV Processing (Brazilian Standard)
-#### Input row: 352301...; 01 / 05 / 2023 ; 1.250,50
-#### Command: Parse CSV, format NFe keys, dates, and numbers (BR pattern)
+```
+printf "chave_nfe; data_emissao; valor_total\n35230100000000000000000000000000000000000000; 01 / 05 / 2023 ; 1.250,50\n" > data.csv
 unique data.csv --csv --format-key --format-date --format-number --verbose
+```
 
 ### 4. CSV Processing (International Standard)
-#### Input row: "John Doe", "1,500.75", "2023-01-01"
-#### Command: Use comma separator and international number formatting
+```
+printf "chave_nfe; data_emissao; valor_total\n35230100000000000000000000000000000000000000; 01 / 05 / 2023 ; 1.250,50\n" > data.csv
 unique data.csv -c -s ',' -f -n international
+unique data.csv --csv --format-key --format-date --format-number -n international --verbose
+```
 
 ### 5. Finding Duplicates Only
 #### Useful for log analysis to see which entries are repeating:
