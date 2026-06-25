@@ -1,5 +1,11 @@
 // command-line arguments
-use clap::{Parser, ValueEnum};
+use clap::{
+    builder::{
+        styling::{AnsiColor, Effects},
+        Styles,
+    },
+    Parser, ValueEnum,
+};
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, ValueEnum, Default)]
@@ -9,26 +15,17 @@ pub enum NumberFormat {
     International, // Milhar: ',' , Decimal: '.'
 }
 
-// https://stackoverflow.com/questions/74068168/clap-rs-not-printing-colors-during-help
-fn get_styles() -> clap::builder::Styles {
-    clap::builder::Styles::styled()
-        .placeholder(
-            anstyle::Style::new().fg_color(Some(anstyle::Color::Ansi(anstyle::AnsiColor::Yellow))),
-        )
-        .usage(
-            anstyle::Style::new()
-                .fg_color(Some(anstyle::Color::Ansi(anstyle::AnsiColor::Cyan)))
-                .bold(),
-        )
-        .header(
-            anstyle::Style::new()
-                .fg_color(Some(anstyle::Color::Ansi(anstyle::AnsiColor::Cyan)))
-                .bold()
-                .underline(),
-        )
-        .literal(
-            anstyle::Style::new().fg_color(Some(anstyle::Color::Ansi(anstyle::AnsiColor::Green))),
-        )
+/// Custom Clap styling to mimic a beautiful colored help menu.
+fn get_styles() -> Styles {
+    let cyan = AnsiColor::Cyan.on_default();
+    let green = AnsiColor::Green.on_default();
+    let yellow = AnsiColor::Yellow.on_default();
+
+    Styles::styled()
+        .header(yellow | Effects::BOLD)
+        .usage(yellow | Effects::BOLD)
+        .literal(green)
+        .placeholder(cyan)
 }
 
 #[derive(Parser, Debug, Clone)]

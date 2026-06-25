@@ -12,14 +12,13 @@ categories = ["command-line-utilities"]
 
 [dependencies]
 claudiofsr_lib = "0.19"
-anstyle = "1.0"
 csv = "1.4"
 blake3 = { version = "1.8", features = ["rayon"] }
 encoding_rs = "0.8"
 encoding_rs_io = "0.1.7"
 execution-time = "0.3"
 regex = { version = "1.12", features = ["unicode"] }
-rayon = "1.11"
+rayon = "1.12"
 thiserror = "2.0"
 
 [dependencies.clap]
